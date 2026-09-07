@@ -31,7 +31,7 @@ export interface PerfConfig {
   disableReasoning: string | null;
 }
 
-export const PERF_CONFIG_VERSION = 3;
+export const PERF_CONFIG_VERSION = 4;
 
 export const DEFAULT_PERF_CONFIG: PerfConfig = {
   runs: 3,
@@ -39,7 +39,7 @@ export const DEFAULT_PERF_CONFIG: PerfConfig = {
   cacheMode: "miss",
   promptSource: "generated",
   customPrompt: "",
-  promptSize: "medium",
+  promptSize: "long",
   promptLang: "en",
   promptLangAuto: true,
   maxTokens: 256,
