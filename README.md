@@ -6,7 +6,7 @@
 - **Capabilities**: reasoning by default, `reasoning_effort`, every known "disable/enable thinking" dialect (`reasoning_effort: none|minimal`, `thinking:{type:disabled}`, `enable_thinking`, `chat_template_kwargs`, OpenRouter `reasoning`, Ollama `think`, Gemini `thinking_budget`), tool calling (`auto` / `required` / named `tool_choice`, parallel, streaming, round-trip, `strict`), structured output (`json_object`, `json_schema`, strict, nested), vision (base64 + URL), prompt caching (automatic + `cache_control`), parameter compatibility.
 - **Message formats**: multiple / mid-conversation `system` messages, consecutive `user` or `assistant` turns, assistant prefill, tool calls without results, orphan tool results, content-parts arrays.
 - **Privacy**: static site, strict CSP, no third-party requests; everything is stored in `localStorage` (keys optionally in `sessionStorage`) and can be wiped in one click. See `/privacy`.
-- **SEO**: every route is prerendered to static HTML in Chinese (`/`) and English (`/en`), with `hreflang`, Open Graph, JSON-LD and a sitemap.
+- **SEO**: every route is prerendered to static HTML in English (`/`, the default) and Chinese (`/zh`), with `hreflang` (`x-default` → English), Open Graph, JSON-LD and a sitemap. Visitors are never redirected by language automatically; a first visit shows a one-time switch banner, and a chosen language is remembered. Legacy `/en/*` URLs 301 to the root via `_redirects`.
 
 ## Development
 
@@ -26,7 +26,7 @@ To try the UI without real keys, add a **Custom** provider with base URL `http:/
 VITE_SITE_URL=https://llmapicheck.dev npm run build
 ```
 
-`build` runs the client build, an SSR build and `scripts/prerender.mjs`, which writes one HTML file per route and locale into `dist/`, plus `404.html`, `robots.txt`, `sitemap.xml` and `_headers` (CSP and other security headers).
+`build` runs the client build, an SSR build and `scripts/prerender.mjs`, which writes one HTML file per route and locale into `dist/`, plus `404.html`, `robots.txt`, `sitemap.xml`, `_redirects` (legacy `/en/*` → `/*`) and `_headers` (CSP and other security headers).
 
 `VITE_SITE_URL` (or Cloudflare's `CF_PAGES_URL`) is used for canonical URLs, `hreflang` alternates, Open Graph URLs and the sitemap. It defaults to `https://llmapicheck.dev`, the production domain; set it when deploying a copy elsewhere.
 

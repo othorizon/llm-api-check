@@ -18,26 +18,25 @@ page.on("console", (m) => {
 const shot = (name) => page.screenshot({ path: `${OUT}/${name}.png`, fullPage: true });
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
 
-// 1. Home (en first: the browser locale is en-US so a first visit to / redirects to /en), then zh via the toggle
+// 1. Home (English is the default locale at /; the browser locale is en-US so nothing redirects), then zh via the toggle
 await page.goto(`${BASE}/`);
-await page.waitForURL(/\/en$/);
 await page.waitForSelector("h1");
-await shot("02-home-en");
+await shot("01-home-en");
 await page.getByRole("button", { name: /Language|语言/ }).click();
-await page.waitForURL((u) => !u.pathname.startsWith("/en"));
+await page.waitForURL(/\/zh$/);
 await page.waitForSelector("h1");
-await shot("01-home-zh");
+await shot("02-home-zh");
 await page.getByRole("button", { name: /Language|语言/ }).click();
-await page.waitForURL(/\/en$/);
-await page.goto(`${BASE}/en/docs/capabilities`);
+await page.waitForURL((u) => u.pathname === "/");
+await page.goto(`${BASE}/docs/capabilities`);
 await page.waitForSelector("h1");
 await shot("03-docs-capabilities-en");
-await page.goto(`${BASE}/en/privacy`);
+await page.goto(`${BASE}/privacy`);
 await page.waitForSelector("h1");
 await shot("04-privacy-en");
 
 // 2. Models: add provider + models
-await page.goto(`${BASE}/en/models`);
+await page.goto(`${BASE}/models`);
 await page.getByRole("button", { name: /Got it/ }).click().catch(() => {});
 await page.getByRole("button", { name: /Add provider/ }).first().click();
 await page.getByRole("combobox").first().selectOption("custom");
@@ -64,7 +63,7 @@ await shot("05-models-en");
 log("models added");
 
 // 3. Performance test
-await page.goto(`${BASE}/en/performance`);
+await page.goto(`${BASE}/performance`);
 await page.waitForSelector("text=Start performance test");
 await page.getByRole("button", { name: "Reset" }).click();
 await page.getByText("Non-streaming", { exact: true }).click();
@@ -93,7 +92,7 @@ await page.getByRole("tab", { name: "Generated" }).click();
 log("custom prompt ui ok");
 
 // 4. Capabilities test (3 models)
-await page.goto(`${BASE}/en/capabilities`);
+await page.goto(`${BASE}/capabilities`);
 await page.waitForSelector("text=Start capability test");
 await page.getByRole("button", { name: "Select all" }).click();
 await page.getByRole("button", { name: /Start capability test/ }).click();
@@ -112,7 +111,7 @@ await page.keyboard.press("Escape");
 log("capabilities done");
 
 // 5. Message formats
-await page.goto(`${BASE}/en/messages`);
+await page.goto(`${BASE}/messages`);
 await page.waitForSelector("text=Start message format test");
 await page.getByRole("button", { name: "Select all" }).click();
 await page.getByRole("button", { name: /Start message format test/ }).click();
@@ -123,7 +122,7 @@ await shot("11-messages-results");
 log("messages done");
 
 // 6. Results page + dark mode + zh
-await page.goto(`${BASE}/en/results`);
+await page.goto(`${BASE}/results`);
 await page.waitForSelector("text=Results");
 await page.locator("li button").first().click();
 await page.waitForTimeout(400);

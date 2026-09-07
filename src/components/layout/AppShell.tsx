@@ -1,11 +1,10 @@
 import * as React from "react";
 import { useLocation, useNavigate } from "react-router";
-import { ShieldCheck } from "lucide-react";
-import { useT } from "@/i18n";
-import { localeFromPath, localizePath } from "@/i18n/core";
+import { Languages, ShieldCheck } from "lucide-react";
+import { getDict, useT } from "@/i18n";
+import { browserLocale, htmlLang, localeFromPath, localizePath, stripLocale, useLocale, type Locale } from "@/i18n/core";
 import { ROUTES } from "@/routes";
 import { applySeo, seoTags } from "@/seo";
-import { stripLocale } from "@/i18n/core";
 import { useSettings } from "@/lib/store/settings";
 import { applyTheme, bootstrapStores, useHydration } from "@/lib/store/bootstrap";
 import { Header } from "./Header";
@@ -20,14 +19,12 @@ function Bootstrap() {
   React.useEffect(() => {
     void bootstrapStores().then(() => {
       applyTheme(useSettings.getState().theme);
-      // First visit: follow the browser language once, then remember the choice.
-      const settings = useSettings.getState();
-      if (settings.locale == null) {
-        const preferred = (navigator.language || "").toLowerCase().startsWith("zh") ? "zh" : "en";
-        settings.setLocale(preferred);
-        const current = localeFromPath(window.location.pathname);
-        if (preferred !== current) navigate(localizePath(stripLocale(window.location.pathname), preferred) + window.location.search + window.location.hash, { replace: true });
-      }
+      // A language the visitor chose earlier (toggle or LanguageBanner) wins over the URL.
+      // First visits are never redirected: crawlers carry no stored preference, so every locale
+      // stays indexable at its own URL. The LanguageBanner offers a switch instead.
+      const preferred = useSettings.getState().locale;
+      const current = localeFromPath(window.location.pathname);
+      if (preferred && preferred !== current) navigate(localizePath(stripLocale(window.location.pathname), preferred) + window.location.search + window.location.hash, { replace: true });
     });
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
     const onChange = () => applyTheme(useSettings.getState().theme);
@@ -42,6 +39,44 @@ function Bootstrap() {
     if (!location.hash) window.scrollTo({ top: 0 });
   }, [location.pathname, location.hash]);
   return null;
+}
+
+/**
+ * First visit only: when the browser language differs from the page language, offer to switch.
+ * Rendered after hydration, so prerendered HTML and crawlers never see it. Either choice is remembered.
+ */
+function LanguageBanner() {
+  const locale = useLocale();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const ready = useHydration((s) => s.ready);
+  const stored = useSettings((s) => s.locale);
+  const setLocale = useSettings((s) => s.setLocale);
+  const [browser, setBrowser] = React.useState<Locale | null>(null);
+  React.useEffect(() => setBrowser(browserLocale()), []);
+  if (!ready || stored != null || !browser || browser === locale) return null;
+  const copy = getDict(browser).banner.language;
+  const accept = () => {
+    setLocale(browser);
+    navigate(localizePath(stripLocale(location.pathname), browser) + location.search + location.hash, { replace: true });
+  };
+  const dismiss = () => setLocale(locale);
+  return (
+    <div className="border-b border-border bg-surface-2" lang={htmlLang[browser]}>
+      <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2 text-sm sm:px-6">
+        <Languages className="h-4 w-4 shrink-0 text-ink-2" aria-hidden />
+        <p className="flex-1 text-ink-2">{copy.body}</p>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="primary" onClick={accept}>
+            {copy.action}
+          </Button>
+          <Button size="sm" onClick={dismiss}>
+            {copy.dismiss}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function PrivacyBanner() {
@@ -73,6 +108,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-screen flex-col">
       <Bootstrap />
       <Header />
+      <LanguageBanner />
       <main className="flex-1">{children}</main>
       <Footer />
       <PrivacyBanner />

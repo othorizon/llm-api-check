@@ -6,7 +6,7 @@
 // (or run `wrangler deploy --routes llmapicheck.dev` once the zone is in your account).
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "llmapicheck",
+  "name": "llm-api-check",
   "compatibility_date": "2025-09-01",
   "assets": {
     "directory": "./dist",

@@ -25,7 +25,7 @@ export const en = {
   },
   status: { pass: "Yes", partial: "Partial", fail: "No", unsupported: "Rejected", error: "Error", skipped: "Skipped", na: "N/A", running: "Running", pending: "Pending" },
   statusLong: { pass: "Supported / works as expected", partial: "Partially works — see notes", fail: "Not supported / did not work", unsupported: "Endpoint rejected the request (HTTP 4xx)", error: "Transport or provider error", skipped: "Skipped (dependency failed or not applicable)", na: "Not applicable" },
-  banner: { privacy: "Everything runs in your browser. API keys, models and results are stored locally and requests go straight to the provider — nothing is sent to this site's servers.", details: "Privacy details", ok: "Got it" },
+  banner: { privacy: "Everything runs in your browser. API keys, models and results are stored locally and requests go straight to the provider — nothing is sent to this site's servers.", details: "Privacy details", ok: "Got it", language: { body: "This site is also available in English.", action: "Switch to English", dismiss: "Keep this language" } },
   home: {
     heroKicker: "Browser-only · open source · no sign-up",
     heroTitle: "Find out which LLM actually fits your use case",

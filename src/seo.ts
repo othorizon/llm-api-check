@@ -1,5 +1,5 @@
 import { getDict } from "@/i18n";
-import { htmlLang, localizePath, type Locale } from "@/i18n/core";
+import { DEFAULT_LOCALE, LOCALES, htmlLang, localizePath, type Locale } from "@/i18n/core";
 import type { SeoKey } from "./routes";
 
 export interface SeoTag {
@@ -40,9 +40,9 @@ export function seoTags(seo: SeoKey, path: string, locale: Locale): SeoTag[] {
     tags.push({ tag: "meta", attrs: { property: "og:url", content: url } });
     tags.push({ tag: "meta", attrs: { property: "og:image", content: `${base}/og.png` } });
     tags.push({ tag: "meta", attrs: { name: "twitter:image", content: `${base}/og.png` } });
-    tags.push({ tag: "link", attrs: { rel: "alternate", hreflang: "zh-CN", href: base + localizePath(path, "zh") } });
-    tags.push({ tag: "link", attrs: { rel: "alternate", hreflang: "en", href: base + localizePath(path, "en") } });
-    tags.push({ tag: "link", attrs: { rel: "alternate", hreflang: "x-default", href: base + localizePath(path, "zh") } });
+    for (const l of LOCALES) tags.push({ tag: "link", attrs: { rel: "alternate", hreflang: htmlLang[l], href: base + localizePath(path, l) } });
+    // x-default: what searchers get when no hreflang matches their language. English is the lingua franca for developers.
+    tags.push({ tag: "link", attrs: { rel: "alternate", hreflang: "x-default", href: base + localizePath(path, DEFAULT_LOCALE) } });
   } else {
     tags.push({ tag: "meta", attrs: { property: "og:image", content: "/og.png" } });
     tags.push({ tag: "meta", attrs: { name: "twitter:image", content: "/og.png" } });

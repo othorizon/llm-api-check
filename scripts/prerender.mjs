@@ -1,5 +1,5 @@
 // Prerenders every route (both locales) into static HTML, writes 404.html,
-// sitemap.xml and _headers. Runs after `vite build` and `vite build --ssr`.
+// robots.txt, sitemap.xml, _redirects and _headers. Runs after `vite build` and `vite build --ssr`.
 import { readFileSync, writeFileSync, mkdirSync, rmSync, existsSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { dirname, join } from "node:path";
@@ -16,10 +16,13 @@ if (!existsSync(entryFile)) {
   console.error("SSR bundle not found at", entryFile);
   process.exit(1);
 }
-const { render, pages, notFoundHead } = await import(pathToFileURL(entryFile).href);
+const { render, pages, notFoundHead, notFoundLang, DEFAULT_LOCALE } = await import(pathToFileURL(entryFile).href);
 
 function fill(head, html, lang) {
-  return template.replace("<!--app-head-->", head).replace("<!--app-html-->", html).replace('<html lang="zh-CN">', `<html lang="${lang}">`);
+  return template
+    .replace("<!--app-head-->", head)
+    .replace("<!--app-html-->", html)
+    .replace(/<html lang="[^"]*">/, `<html lang="${lang}">`);
 }
 
 function outPath(url) {
@@ -36,33 +39,45 @@ for (const page of all) {
   writeFileSync(file, fill(page.head, html, page.lang));
   count++;
 }
-// 404 page (Chinese default; router shows the localised page on the client)
-writeFileSync(join(dist, "404.html"), fill(notFoundHead(), render("/__not_found__"), "zh-CN"));
+// 404 page in the default locale; the router shows the localised page on the client.
+writeFileSync(join(dist, "404.html"), fill(notFoundHead(), render("/__not_found__"), notFoundLang));
 
 // robots + sitemap
 const robots = ["User-agent: *", "Allow: /", siteUrl ? `Sitemap: ${siteUrl}/sitemap.xml` : "", ""].filter((l, i, a) => !(l === "" && i === a.length - 2)).join("\n");
 writeFileSync(join(dist, "robots.txt"), robots);
 if (siteUrl) {
   const now = new Date().toISOString().slice(0, 10);
+  // Group the locale variants of each route by its unprefixed path.
   const byPath = new Map();
   for (const p of all) {
-    const key = p.locale === "en" ? (p.url === "/en" ? "/" : p.url.slice(3)) : p.url;
-    if (!byPath.has(key)) byPath.set(key, {});
-    byPath.get(key)[p.locale] = p.url;
+    if (!byPath.has(p.path)) byPath.set(p.path, {});
+    byPath.get(p.path)[p.locale] = p;
   }
   const urls = [];
-  for (const [, locs] of byPath) {
-    for (const [loc, url] of Object.entries(locs)) {
-      const alts = Object.entries(locs)
-        .map(([l, u]) => `    <xhtml:link rel="alternate" hreflang="${l === "zh" ? "zh-CN" : "en"}" href="${siteUrl}${u}"/>`)
+  for (const [path, locs] of byPath) {
+    for (const page of Object.values(locs)) {
+      const alts = Object.values(locs)
+        .map((alt) => `    <xhtml:link rel="alternate" hreflang="${alt.lang}" href="${siteUrl}${alt.url}"/>`)
         .join("\n");
-      urls.push(`  <url>\n    <loc>${siteUrl}${url}</loc>\n    <lastmod>${now}</lastmod>\n${alts}\n    <xhtml:link rel="alternate" hreflang="x-default" href="${siteUrl}${locs.zh}"/>\n    <changefreq>${url === "/" || url === "/en" ? "weekly" : "monthly"}</changefreq>\n    <priority>${loc === "zh" && url === "/" ? "1.0" : url === "/en" ? "0.9" : "0.7"}</priority>\n  </url>`);
+      // x-default: the default locale (English), for searchers whose language matches no hreflang.
+      const xDefault = `    <xhtml:link rel="alternate" hreflang="x-default" href="${siteUrl}${locs[DEFAULT_LOCALE].url}"/>`;
+      const home = path === "/";
+      const priority = home ? (page.locale === DEFAULT_LOCALE ? "1.0" : "0.9") : "0.7";
+      urls.push(`  <url>\n    <loc>${siteUrl}${page.url}</loc>\n    <lastmod>${now}</lastmod>\n${alts}\n${xDefault}\n    <changefreq>${home ? "weekly" : "monthly"}</changefreq>\n    <priority>${priority}</priority>\n  </url>`);
     }
   }
   writeFileSync(join(dist, "sitemap.xml"), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">\n${urls.join("\n")}\n</urlset>\n`);
 } else {
   console.warn("VITE_SITE_URL not set: skipping sitemap.xml and canonical URLs. Set it in your Cloudflare build environment.");
 }
+
+// Redirects (Cloudflare Workers static assets / Pages `_redirects`).
+// English used to live under /en; it is now the default locale at the site root.
+const redirects = `# English moved from /en to the site root (Chinese is under /zh).
+/en / 301
+/en/* /:splat 301
+`;
+writeFileSync(join(dist, "_redirects"), redirects);
 
 // Security headers. The inline theme script gets a CSP hash so no 'unsafe-inline' is needed.
 const inline = template.match(/<script>([\s\S]*?)<\/script>/);
@@ -93,4 +108,4 @@ const headers = `/*
 `;
 writeFileSync(join(dist, "_headers"), headers);
 rmSync(ssrDir, { recursive: true, force: true });
-console.log(`Prerendered ${count} pages + 404.html${siteUrl ? " + sitemap.xml" : ""} (site: ${siteUrl || "unset"})`);
+console.log(`Prerendered ${count} pages + 404.html${siteUrl ? " + sitemap.xml" : ""} + _redirects (site: ${siteUrl || "unset"})`);

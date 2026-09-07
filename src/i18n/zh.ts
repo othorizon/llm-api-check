@@ -27,7 +27,7 @@ export const zh: Dict = {
   },
   status: { pass: "支持", partial: "部分", fail: "不支持", unsupported: "被拒绝", error: "错误", skipped: "已跳过", na: "不适用", running: "运行中", pending: "等待中" },
   statusLong: { pass: "支持 / 行为符合预期", partial: "部分可用，请查看备注", fail: "不支持 / 未达到预期", unsupported: "接口拒绝了请求（HTTP 4xx）", error: "网络或服务商错误", skipped: "已跳过（依赖项失败或不适用）", na: "不适用" },
-  banner: { privacy: "所有操作都在你的浏览器中完成。API Key、模型与结果保存在本地，请求由浏览器直接发往服务商——本站没有任何服务器接收数据。", details: "隐私说明", ok: "知道了" },
+  banner: { privacy: "所有操作都在你的浏览器中完成。API Key、模型与结果保存在本地，请求由浏览器直接发往服务商——本站没有任何服务器接收数据。", details: "隐私说明", ok: "知道了", language: { body: "本站提供中文版。", action: "切换到中文", dismiss: "继续使用当前语言" } },
   home: {
     heroKicker: "纯浏览器运行 · 开源 · 无需注册",
     heroTitle: "搞清楚哪个大模型真正适合你的场景",
