@@ -1,0 +1,15 @@
+// Cloudflare Workers (static assets) deployment.
+//   npm run deploy            -> builds and runs `wrangler deploy`
+//   npm run deploy:pages      -> alternative: Cloudflare Pages
+// No Worker code runs: the site is 100% static. Browser -> LLM provider only.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "which-llm-i-can-use",
+  "compatibility_date": "2025-09-01",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "404-page",
+    "html_handling": "auto-trailing-slash"
+  },
+  "observability": { "enabled": false }
+}

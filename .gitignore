@@ -1,0 +1,10 @@
+node_modules
+dist
+dist-ssr
+.wrangler
+.dev.vars
+*.log
+.DS_Store
+.vite
+coverage
+scratch

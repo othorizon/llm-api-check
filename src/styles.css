@@ -1,0 +1,189 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  color-scheme: light;
+  --bg: #f7f7f5;
+  --surface: #ffffff;
+  --surface-2: #f2f2ef;
+  --border: rgba(11, 11, 11, 0.1);
+  --border-strong: rgba(11, 11, 11, 0.2);
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --muted: #898781;
+  --grid: #e1e0d9;
+  --accent: #2a78d6;
+  --accent-ink: #1c5cab;
+  --good: #0ca30c;
+  --good-ink: #006300;
+  --warning: #fab219;
+  --warning-ink: #8a5b00;
+  --serious: #ec835a;
+  --serious-ink: #9a3c15;
+  --critical: #d03b3b;
+  --critical-ink: #a32424;
+  --s1: #2a78d6;
+  --s2: #eb6834;
+  --s3: #1baf7a;
+  --s4: #eda100;
+  --s5: #e87ba4;
+  --s6: #008300;
+  --s7: #4a3aa7;
+  --s8: #e34948;
+}
+.dark {
+  color-scheme: dark;
+  --bg: #0d0d0d;
+  --surface: #1a1a19;
+  --surface-2: #232322;
+  --border: rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.22);
+  --ink: #ffffff;
+  --ink-2: #c3c2b7;
+  --muted: #898781;
+  --grid: #2c2c2a;
+  --accent: #3987e5;
+  --accent-ink: #86b6ef;
+  --good: #0ca30c;
+  --good-ink: #4ed14e;
+  --warning: #fab219;
+  --warning-ink: #fac75c;
+  --serious: #ec835a;
+  --serious-ink: #f2a284;
+  --critical: #d03b3b;
+  --critical-ink: #ee7777;
+  --s1: #3987e5;
+  --s2: #d95926;
+  --s3: #199e70;
+  --s4: #c98500;
+  --s5: #d55181;
+  --s6: #008300;
+  --s7: #9085e9;
+  --s8: #e66767;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-muted: var(--muted);
+  --color-grid: var(--grid);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-good: var(--good);
+  --color-good-ink: var(--good-ink);
+  --color-warning: var(--warning);
+  --color-warning-ink: var(--warning-ink);
+  --color-serious: var(--serious);
+  --color-serious-ink: var(--serious-ink);
+  --color-critical: var(--critical);
+  --color-critical-ink: var(--critical-ink);
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+  --radius-card: 0.75rem;
+}
+
+html {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+body {
+  @apply bg-bg text-ink;
+  margin: 0;
+}
+::selection {
+  background: color-mix(in oklab, var(--accent) 25%, transparent);
+}
+a {
+  color: inherit;
+}
+@utility tnum {
+  font-variant-numeric: tabular-nums;
+}
+@utility mono {
+  font-family: var(--font-mono);
+}
+.prose-doc h2 {
+  @apply mt-10 mb-3 text-xl font-semibold tracking-tight scroll-mt-24;
+}
+.prose-doc h3 {
+  @apply mt-6 mb-2 text-base font-semibold scroll-mt-24;
+}
+.prose-doc p,
+.prose-doc li {
+  @apply text-[15px] leading-7 text-ink-2;
+}
+.prose-doc p {
+  @apply my-3;
+}
+.prose-doc ul {
+  @apply my-3 list-disc pl-6;
+}
+.prose-doc ol {
+  @apply my-3 list-decimal pl-6;
+}
+.prose-doc li {
+  @apply my-1;
+}
+.prose-doc code {
+  @apply mono rounded bg-surface-2 px-1 py-0.5 text-[13px] text-ink;
+}
+.prose-doc pre {
+  @apply mono my-4 overflow-x-auto rounded-lg border border-border bg-surface-2 p-4 text-[13px] leading-6;
+}
+.prose-doc pre code {
+  @apply bg-transparent p-0;
+}
+.prose-doc table {
+  @apply my-4 w-full border-collapse text-sm;
+}
+.prose-doc th,
+.prose-doc td {
+  @apply border-b border-border px-3 py-2 text-left align-top;
+}
+.prose-doc th {
+  @apply text-xs font-semibold uppercase tracking-wide text-muted;
+}
+.prose-doc strong {
+  @apply text-ink;
+}
+.prose-doc a {
+  @apply text-accent-ink underline decoration-accent/40 underline-offset-2 hover:decoration-accent;
+}
+.prose-doc blockquote {
+  @apply my-4 border-l-2 border-accent/50 pl-4 text-ink-2;
+}
+.prose-doc .callout {
+  @apply my-4 rounded-lg border border-border bg-surface-2 p-4 text-sm;
+}
+kbd {
+  @apply mono rounded border border-border-strong bg-surface-2 px-1.5 py-0.5 text-xs;
+}
+@keyframes pulse-soft {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+.pulse-soft {
+  animation: pulse-soft 1.6s ease-in-out infinite;
+}
+/* Hide number input spinners */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}

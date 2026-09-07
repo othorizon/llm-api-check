@@ -1,0 +1,10 @@
+{
+  "name": "Which LLM Can I Use",
+  "short_name": "WhichLLM",
+  "description": "Browser-only LLM capability & performance tester.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7f7f5",
+  "theme_color": "#0b0b0b",
+  "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }, { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }]
+}

@@ -1,0 +1,46 @@
+{
+  "name": "which-llm-i-can-use",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Browser-only LLM capability & performance tester. Probe TTFT, throughput, prompt caching, reasoning, tool calling, structured output and vision support of any OpenAI-compatible model — no server, your API keys never leave your browser.",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && vite build --ssr src/entry-server.tsx --outDir dist-ssr && node scripts/prerender.mjs",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "mock": "node scripts/mock-server.mjs",
+    "gen:og": "node scripts/gen-og.mjs",
+    "deploy": "npm run build && wrangler deploy",
+    "deploy:pages": "npm run build && wrangler pages deploy dist"
+  },
+  "dependencies": {
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.0.0",
+    "radix-ui": "^1.4.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-router": "^7.18.0",
+    "tailwind-merge": "^3.3.0",
+    "zustand": "^5.0.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.0",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "playwright-core": "^1.50.0",
+    "tailwindcss": "^4.1.0",
+    "typescript": "^5.9.0",
+    "vite": "^7.0.0",
+    "vitest": "^3.2.0",
+    "wrangler": "^4.0.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
