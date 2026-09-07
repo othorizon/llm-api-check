@@ -24,4 +24,4 @@ export const ROUTES: RouteDef[] = [
   { path: "/privacy", key: "privacy", seo: "privacy" },
 ];
 
-export const REPO_URL = "https://github.com/othorizon/which-llm-i-can-use";
+export const REPO_URL = "https://github.com/othorizon/llm-api-check";
