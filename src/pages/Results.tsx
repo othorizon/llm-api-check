@@ -35,25 +35,15 @@ function ResultsWorkbench() {
     setParams(id ? { session: id } : {}, { replace: true });
   };
 
-  if (sessions.length === 0)
-    return (
-      <>
-        <SectionTitle title={t.results.title} subtitle={t.results.subtitle} />
-        <EmptyState icon={<History className="h-8 w-8" />} title={t.results.empty} hint={t.results.emptyHint} />
-      </>
-    );
+  if (sessions.length === 0) return <EmptyState icon={<History className="h-8 w-8" />} title={t.results.empty} hint={t.results.emptyHint} />;
 
   return (
     <>
-      <SectionTitle
-        title={t.results.title}
-        subtitle={t.results.subtitle}
-        right={
-          <Button variant="ghost" size="sm" onClick={() => confirm(t.results.clearAllConfirm) && (clear(), select(null))}>
-            <Trash2 className="h-4 w-4" /> {t.results.clearAll}
-          </Button>
-        }
-      />
+      <div className="-mt-4 mb-4 flex justify-end">
+        <Button variant="ghost" size="sm" onClick={() => confirm(t.results.clearAllConfirm) && (clear(), select(null))}>
+          <Trash2 className="h-4 w-4" /> {t.results.clearAll}
+        </Button>
+      </div>
       <div className="grid gap-6 lg:grid-cols-[320px_minmax(0,1fr)]">
         <Card className="self-start overflow-hidden">
           <ul className="max-h-[70vh] divide-y divide-border overflow-y-auto">
@@ -85,8 +75,10 @@ function ResultsWorkbench() {
 }
 
 export function ResultsPage() {
+  const t = useT();
   return (
     <Page>
+      <SectionTitle title={t.results.title} subtitle={t.results.subtitle} />
       <ClientOnly>
         <ResultsWorkbench />
       </ClientOnly>

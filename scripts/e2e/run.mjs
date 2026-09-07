@@ -18,13 +18,17 @@ page.on("console", (m) => {
 const shot = (name) => page.screenshot({ path: `${OUT}/${name}.png`, fullPage: true });
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
 
-// 1. Home (zh + en), docs, privacy
+// 1. Home (en first: the browser locale is en-US so a first visit to / redirects to /en), then zh via the toggle
 await page.goto(`${BASE}/`);
-await page.waitForSelector("h1");
-await shot("01-home-zh");
-await page.goto(`${BASE}/en`);
+await page.waitForURL(/\/en$/);
 await page.waitForSelector("h1");
 await shot("02-home-en");
+await page.getByRole("button", { name: /Language|语言/ }).click();
+await page.waitForURL((u) => !u.pathname.startsWith("/en"));
+await page.waitForSelector("h1");
+await shot("01-home-zh");
+await page.getByRole("button", { name: /Language|语言/ }).click();
+await page.waitForURL(/\/en$/);
 await page.goto(`${BASE}/en/docs/capabilities`);
 await page.waitForSelector("h1");
 await shot("03-docs-capabilities-en");
@@ -117,7 +121,7 @@ await page.getByRole("button", { name: /Theme/ }).click(); // system -> light
 await page.getByRole("button", { name: /Theme/ }).click(); // light -> dark
 await page.waitForTimeout(300);
 await shot("13-results-dark");
-await page.getByRole("button", { name: "Language" }).click();
+await page.getByRole("button", { name: /Language|语言/ }).click();
 await page.waitForURL(/\/results/);
 await page.waitForTimeout(400);
 await shot("14-results-zh-dark");

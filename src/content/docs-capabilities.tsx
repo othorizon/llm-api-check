@@ -89,7 +89,8 @@ export function CapabilitiesDocsContent({ locale }: { locale: Locale }) {
       </p>
       <h2 id="dialects">{zh ? "推理开关的参数写法" : "Reasoning toggle dialects"}</h2>
       <p>{zh ? "“关闭（或开启）推理”探测会逐一尝试下列写法，每种写法单独一个请求：" : "The “turn reasoning off (or on)” probe tries each of these dialects in its own request:"}</p>
-      <table>
+      <div className="overflow-x-auto">
+      <table className="whitespace-nowrap">
         <thead>
           <tr>
             <th>{zh ? "写法" : "Dialect"}</th>
@@ -104,11 +105,12 @@ export function CapabilitiesDocsContent({ locale }: { locale: Locale }) {
               <td><code>{d.id}</code></td>
               <td><code>{JSON.stringify(d.disable)}</code></td>
               <td><code>{JSON.stringify(d.enable)}</code></td>
-              <td>{d.vendors}</td>
+              <td className="whitespace-normal">{d.vendors}</td>
             </tr>
           ))}
         </tbody>
       </table>
+      </div>
       <LangChainSection locale={locale} />
       {SUITE_ORDER.map((suite) => (
         <section key={suite}>

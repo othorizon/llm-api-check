@@ -42,7 +42,27 @@ function useProbeConfig(storageKey: string, defaults: CapConfig) {
   return [config, update] as const;
 }
 
-export function ProbeWorkbench({ kind, suites, defaults, title, subtitle, startLabel, intro, storageKey }: { kind: ProbeKind; suites: CapSuiteId[]; defaults: CapConfig; title: string; subtitle: string; startLabel: string; intro?: React.ReactNode; storageKey: string }) {
+export function ProbeHeader({ title, subtitle, intro }: { title: string; subtitle: string; intro?: React.ReactNode }) {
+  const t = useT();
+  return (
+    <>
+      <SectionTitle
+        title={title}
+        subtitle={subtitle}
+        right={
+          <LLink to="/results">
+            <Button variant="ghost" size="sm">
+              <History className="h-4 w-4" /> {t.perf.viewAll}
+            </Button>
+          </LLink>
+        }
+      />
+      {intro ? <p className="-mt-1 mb-5 max-w-3xl text-sm leading-6 text-ink-2">{intro}</p> : null}
+    </>
+  );
+}
+
+export function ProbeWorkbench({ kind, suites, defaults, startLabel, storageKey }: { kind: ProbeKind; suites: CapSuiteId[]; defaults: CapConfig; startLabel: string; storageKey: string }) {
   const t = useT();
   const locale = useLocale();
   const models = useProviders((s) => s.models);
@@ -76,18 +96,6 @@ export function ProbeWorkbench({ kind, suites, defaults, title, subtitle, startL
 
   return (
     <>
-      <SectionTitle
-        title={title}
-        subtitle={subtitle}
-        right={
-          <LLink to="/results">
-            <Button variant="ghost" size="sm">
-              <History className="h-4 w-4" /> {t.perf.viewAll}
-            </Button>
-          </LLink>
-        }
-      />
-      {intro ? <p className="mb-5 max-w-3xl text-sm leading-6 text-ink-2">{intro}</p> : null}
       <div className="grid gap-6 lg:grid-cols-[340px_minmax(0,1fr)]">
         <div className="space-y-4">
           <ModelPicker selected={selected} onChange={setSelected} disabled={running} />

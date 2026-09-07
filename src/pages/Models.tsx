@@ -134,21 +134,15 @@ function ModelsWorkbench() {
 
   return (
     <>
-      <SectionTitle
-        title={t.models.title}
-        subtitle={t.models.subtitle}
-        right={
-          <div className="flex flex-wrap gap-2">
-            <ImportExport />
-            <Button variant="outline" onClick={() => setProviderForm({ open: true, provider: null })}>
-              <Server className="h-4 w-4" /> {t.models.addProvider}
-            </Button>
-            <Button variant="primary" onClick={() => setModelForm({ open: true, model: null })} disabled={providers.length === 0}>
-              <Plus className="h-4 w-4" /> {t.models.addModel}
-            </Button>
-          </div>
-        }
-      />
+      <div className="-mt-4 mb-5 flex flex-wrap justify-end gap-2">
+        <ImportExport />
+        <Button variant="outline" onClick={() => setProviderForm({ open: true, provider: null })}>
+          <Server className="h-4 w-4" /> {t.models.addProvider}
+        </Button>
+        <Button variant="primary" onClick={() => setModelForm({ open: true, model: null })} disabled={providers.length === 0}>
+          <Plus className="h-4 w-4" /> {t.models.addModel}
+        </Button>
+      </div>
 
       {providers.length === 0 ? (
         <EmptyState
@@ -327,8 +321,10 @@ function ModelsWorkbench() {
 }
 
 export function ModelsPage() {
+  const t = useT();
   return (
     <Page>
+      <SectionTitle title={t.models.title} subtitle={t.models.subtitle} />
       <ClientOnly>
         <ModelsWorkbench />
       </ClientOnly>

@@ -159,17 +159,6 @@ function PerfWorkbench() {
 
   return (
     <>
-      <SectionTitle
-        title={t.perf.title}
-        subtitle={t.perf.subtitle}
-        right={
-          <LLink to="/results">
-            <Button variant="ghost" size="sm">
-              <History className="h-4 w-4" /> {t.perf.viewAll}
-            </Button>
-          </LLink>
-        }
-      />
       <div className="grid gap-6 lg:grid-cols-[340px_minmax(0,1fr)]">
         <div className="space-y-4">
           <ModelPicker selected={selected} onChange={setSelected} disabled={running} />
@@ -271,8 +260,20 @@ function PerfWorkbench() {
 }
 
 export function PerformancePage() {
+  const t = useT();
   return (
     <Page>
+      <SectionTitle
+        title={t.perf.title}
+        subtitle={t.perf.subtitle}
+        right={
+          <LLink to="/results">
+            <Button variant="ghost" size="sm">
+              <History className="h-4 w-4" /> {t.perf.viewAll}
+            </Button>
+          </LLink>
+        }
+      />
       <ClientOnly>
         <PerfWorkbench />
       </ClientOnly>

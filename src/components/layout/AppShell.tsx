@@ -1,8 +1,8 @@
 import * as React from "react";
-import { useLocation } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import { ShieldCheck } from "lucide-react";
 import { useT } from "@/i18n";
-import { localeFromPath } from "@/i18n/core";
+import { localeFromPath, localizePath } from "@/i18n/core";
 import { ROUTES } from "@/routes";
 import { applySeo, seoTags } from "@/seo";
 import { stripLocale } from "@/i18n/core";
@@ -16,8 +16,19 @@ import { Button } from "@/components/ui/Button";
 /** Runs once on the client: hydrate stores, apply theme, keep SEO tags in sync. */
 function Bootstrap() {
   const location = useLocation();
+  const navigate = useNavigate();
   React.useEffect(() => {
-    void bootstrapStores().then(() => applyTheme(useSettings.getState().theme));
+    void bootstrapStores().then(() => {
+      applyTheme(useSettings.getState().theme);
+      // First visit: follow the browser language once, then remember the choice.
+      const settings = useSettings.getState();
+      if (settings.locale == null) {
+        const preferred = (navigator.language || "").toLowerCase().startsWith("zh") ? "zh" : "en";
+        settings.setLocale(preferred);
+        const current = localeFromPath(window.location.pathname);
+        if (preferred !== current) navigate(localizePath(stripLocale(window.location.pathname), preferred) + window.location.search + window.location.hash, { replace: true });
+      }
+    });
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
     const onChange = () => applyTheme(useSettings.getState().theme);
     mq.addEventListener("change", onChange);
