@@ -1,0 +1,15 @@
+{
+  // Cloudflare Workers 静态资源部署：npm run deploy
+  // Cloudflare Pages 用户改用：npm run deploy:pages
+  "name": "which-llm-i-can-use",
+  "compatibility_date": "2025-01-01",
+  "assets": {
+    "directory": "./dist",
+    // 目录形式的 /docs → /docs/index.html；未命中的路径回落到首页交给前端路由
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "single-page-application"
+  },
+  "observability": {
+    "enabled": false
+  }
+}

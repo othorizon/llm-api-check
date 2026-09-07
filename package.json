@@ -1,0 +1,31 @@
+{
+  "name": "which-llm-i-can-use",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "LLM Lab — 浏览器端的大模型能力与性能测试台 / Browser-side LLM capability & performance test bench",
+  "scripts": {
+    "dev": "vite",
+    "dev:mock": "node dev/mock-llm-server.mjs 8787",
+    "build": "npm run assets && tsc --noEmit && vite build && node scripts/postbuild.mjs",
+    "assets": "node scripts/gen-assets.mjs",
+    "typecheck": "tsc --noEmit",
+    "preview": "vite preview",
+    "deploy": "npm run build && npx --yes wrangler deploy",
+    "deploy:pages": "npm run build && npx --yes wrangler pages deploy dist"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.7"
+  }
+}

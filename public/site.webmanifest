@@ -1,0 +1,23 @@
+{
+  "name": "大模型能力与性能测试台",
+  "short_name": "LLM 测试台",
+  "description": "浏览器端的 LLM 能力、性能与 API 兼容性测试工具，数据只存本地。",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b0d11",
+  "theme_color": "#4f46e5",
+  "lang": "zh-CN",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

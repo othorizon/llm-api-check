@@ -1,0 +1,119 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --c-bg: 249 250 251;
+  --c-surface: 255 255 255;
+  --c-raised: 245 247 249;
+  --c-line: 226 230 235;
+  --c-ink: 16 20 26;
+  --c-muted: 91 100 112;
+  --c-faint: 141 149 161;
+  --c-brand: 79 70 229;
+  --c-brand-ink: 255 255 255;
+  --c-ok: 15 138 85;
+  --c-warn: 176 112 6;
+  --c-bad: 199 45 45;
+  --c-info: 37 99 235;
+  color-scheme: light;
+}
+
+[data-theme='dark'] {
+  --c-bg: 11 13 17;
+  --c-surface: 19 22 28;
+  --c-raised: 26 30 37;
+  --c-line: 43 49 59;
+  --c-ink: 233 236 241;
+  --c-muted: 154 163 176;
+  --c-faint: 110 119 132;
+  --c-brand: 131 124 255;
+  --c-brand-ink: 12 14 19;
+  --c-ok: 61 197 133;
+  --c-warn: 232 168 56;
+  --c-bad: 241 111 111;
+  --c-info: 96 165 250;
+  color-scheme: dark;
+}
+
+@layer base {
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    @apply bg-bg text-ink font-sans antialiased;
+    font-feature-settings: 'tnum' 0;
+  }
+  * { border-color: rgb(var(--c-line)); }
+  ::selection { background: rgb(var(--c-brand) / 0.22); }
+  h1, h2, h3, h4 { @apply text-ink; text-wrap: balance; }
+  a { @apply text-brand; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: rgb(var(--c-line)); border-radius: 8px; border: 3px solid transparent; background-clip: content-box; }
+  ::-webkit-scrollbar-thumb:hover { background: rgb(var(--c-faint) / .6); background-clip: content-box; }
+  ::-webkit-scrollbar-track { background: transparent; }
+}
+
+@layer components {
+  .card { @apply bg-surface border border-line rounded-xl; }
+  .card-pad { @apply p-4 sm:p-5; }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium
+           border border-transparent transition-colors select-none whitespace-nowrap
+           disabled:opacity-45 disabled:cursor-not-allowed;
+  }
+  .btn-primary { @apply bg-brand text-brand-ink hover:opacity-90; }
+  .btn-ghost { @apply border-line text-ink hover:bg-raised; }
+  .btn-subtle { @apply text-muted hover:text-ink hover:bg-raised; }
+  .btn-danger { @apply border-line text-bad hover:bg-bad/10; }
+  .btn-sm { @apply px-2 py-1 text-xs; }
+  .btn-lg { @apply px-4 py-2.5 text-[15px]; }
+
+  .input {
+    @apply w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink
+           placeholder:text-faint outline-none transition
+           focus:border-brand focus:ring-2 focus:ring-brand/25;
+  }
+  .label { @apply block text-[13px] font-medium text-muted mb-1.5; }
+  .hint { @apply text-xs text-faint mt-1.5 leading-relaxed; }
+
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium
+           border border-line text-muted bg-raised;
+  }
+
+  .tabbar { @apply flex gap-1 border-b border-line; }
+  .tab {
+    @apply relative px-3 py-2 text-sm font-medium text-muted hover:text-ink transition-colors
+           after:absolute after:left-2 after:right-2 after:-bottom-px after:h-0.5 after:rounded-full;
+  }
+  .tab-active { @apply text-ink after:bg-brand; }
+
+  .kbd { @apply rounded border border-line bg-raised px-1 py-0.5 font-mono text-[11px] text-muted; }
+
+  .prose-doc { @apply text-[13.5px] leading-relaxed text-muted; }
+  .prose-doc h3 { @apply text-ink font-semibold text-sm mt-4 mb-1.5 first:mt-0; }
+  .prose-doc p { @apply my-2; }
+  .prose-doc ul { @apply my-2 space-y-1 pl-4 list-disc marker:text-faint; }
+  .prose-doc ol { @apply my-2 space-y-1 pl-5 list-decimal marker:text-faint; }
+  .prose-doc code { @apply rounded bg-raised border border-line px-1 py-px font-mono text-[12px] text-ink; }
+  .prose-doc strong { @apply text-ink font-semibold; }
+  .prose-doc table { @apply my-3 w-full text-left border-collapse; }
+  .prose-doc th { @apply border-b border-line py-1.5 pr-3 text-[12px] font-semibold text-ink; }
+  .prose-doc td { @apply border-b border-line py-1.5 pr-3 align-top text-[12.5px]; }
+  .prose-doc pre { @apply my-2 overflow-x-auto rounded-lg border border-line bg-raised p-3 font-mono text-[12px] text-ink; }
+
+  .skeleton { @apply relative overflow-hidden bg-raised; }
+  .skeleton::after {
+    content: ''; @apply absolute inset-0;
+    background: linear-gradient(90deg, transparent, rgb(var(--c-line) / .55), transparent);
+    animation: shimmer 1.4s infinite;
+    transform: translateX(-100%);
+  }
+  @keyframes shimmer { 100% { transform: translateX(100%); } }
+}
+
+@layer utilities {
+  .tnum { font-variant-numeric: tabular-nums; }
+  .scrollbar-none { scrollbar-width: none; }
+  .scrollbar-none::-webkit-scrollbar { display: none; }
+}

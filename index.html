@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>大模型能力与性能测试台｜TTFT、token/s、工具调用与消息格式兼容性实测</title>
+    <meta
+      name="description"
+      content="浏览器端的 LLM 测试台：实测首 token 时延（TTFT）、输出 token/s、Prompt Cache 加速，验证思维链、reasoning_effort、工具调用、tool_choice required、JSON Schema 结构化输出、视觉理解，以及多条 system、连续 user、残缺 tool 消息等格式兼容性。支持 OpenAI、DeepSeek、通义千问、豆包、MiniMax、GLM、Kimi 等任意 OpenAI 兼容端点。数据只存浏览器本地，请求不经服务器。"
+    />
+    <meta name="keywords" content="LLM 测试,大模型测速,TTFT,首 token 时延,token/s,Prompt Cache,思维链,reasoning_effort,Function Calling,tool_choice,结构化输出,JSON Schema,OpenAI 兼容,模型对比,语音对话延迟" />
+    <meta name="author" content="which-llm-i-can-use" />
+    <meta name="robots" content="index,follow,max-image-preview:large" />
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0b0d11" media="(prefers-color-scheme: dark)" />
+    <meta name="format-detection" content="telephone=no" />
+    <link rel="canonical" href="%VITE_SITE_URL%/" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="LLM 能力与性能测试台" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:title" content="大模型能力与性能测试台 · 浏览器直连，数据不出本机" />
+    <meta property="og:description" content="一次测清模型的 TTFT、输出速度、缓存加速、思维链与工具调用支持度，以及非常规消息格式的兼容性。" />
+    <meta property="og:url" content="%VITE_SITE_URL%/" />
+    <meta property="og:image" content="%VITE_SITE_URL%/og.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="大模型能力与性能测试台" />
+    <meta name="twitter:description" content="浏览器端实测 LLM 的时延、吞吐与 API 兼容性，数据只存本地。" />
+    <meta name="twitter:image" content="%VITE_SITE_URL%/og.png" />
+  </head>
+  <body>
+    <div id="root">
+      <!-- 静态首屏：无 JS 环境下的可读内容，加载后由应用接管渲染相同信息 -->
+      <!--seo-shell-->
+      <div style="max-width:820px;margin:0 auto;padding:48px 20px;font-family:system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;line-height:1.65;color:#10141a">
+        <h1 style="font-size:30px;margin:0 0 12px">大模型能力与性能测试台</h1>
+        <p style="color:#5b6470;margin:0 0 20px">
+          录入任意 OpenAI 兼容端点，一次性测清它的首 token 时延与吞吐、思维链 / 工具调用 / 结构化输出 / 视觉能力，
+          以及非常规消息格式的兼容性。所有请求由浏览器直接发出，不经过任何中间服务器。
+        </p>
+        <h2 style="font-size:18px;margin:28px 0 8px">性能测试</h2>
+        <ul style="color:#5b6470;margin:0;padding-left:20px">
+          <li>流式与非流式的 TTFT（首 token 时延）、输出 token/s、端到端时延、p50 / p95</li>
+          <li>Prompt Cache（上下文缓存）命中率与 TTFT 降幅</li>
+          <li>多轮测试自动随机化提示词前缀，规避缓存导致的虚高</li>
+          <li>折算为实时语音对话适配度评级（A / B / C / D）</li>
+        </ul>
+        <h2 style="font-size:18px;margin:28px 0 8px">模型能力测试</h2>
+        <ul style="color:#5b6470;margin:0;padding-left:20px">
+          <li>思维链是否回传、reasoning_effort 思考等级是否生效</li>
+          <li>关闭思维链的六种传参写法逐一探测（reasoning_effort: minimal、thinking: disabled、enable_thinking: false 等）</li>
+          <li>工具调用、tool_choice required 强制调用、指名调用、并行调用、结果回填</li>
+          <li>结构化输出：json_object、JSON Schema、strict 严格模式、嵌套结构</li>
+          <li>视觉理解（本地生成图片验证）</li>
+        </ul>
+        <h2 style="font-size:18px;margin:28px 0 8px">消息格式兼容性</h2>
+        <ul style="color:#5b6470;margin:0;padding-left:20px">
+          <li>开头多条 system、对话中间插入 system、developer 角色</li>
+          <li>连续多条 user / assistant，以 assistant 结尾的前缀续写</li>
+          <li>悬空的 tool_calls、孤立的 tool 结果消息</li>
+          <li>数组形式的 content、最小请求</li>
+        </ul>
+        <h2 style="font-size:18px;margin:28px 0 8px">隐私</h2>
+        <p style="color:#5b6470;margin:0 0 20px">
+          本站没有后端接口，不收集任何数据。API Key 与测试结果只保存在你的浏览器本地存储中。
+        </p>
+        <p style="color:#8d95a1;font-size:13px">正在加载应用…（需要启用 JavaScript）</p>
+      </div>
+      <!--/seo-shell-->
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

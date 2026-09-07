@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.wrangler/
+*.local
+.DS_Store
+drive.tmp.mjs
+tsconfig.tsbuildinfo
