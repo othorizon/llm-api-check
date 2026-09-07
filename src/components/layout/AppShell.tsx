@@ -2,7 +2,7 @@ import * as React from "react";
 import { useLocation, useNavigate } from "react-router";
 import { Languages, ShieldCheck } from "lucide-react";
 import { getDict, useT } from "@/i18n";
-import { browserLocale, htmlLang, localeFromPath, localizePath, stripLocale, useLocale, type Locale } from "@/i18n/core";
+import { browserLocale, htmlLang, localeFromPath, localizePath, redirectLocale, stripLocale, useLocale, type Locale } from "@/i18n/core";
 import { ROUTES } from "@/routes";
 import { applySeo, seoTags } from "@/seo";
 import { useSettings } from "@/lib/store/settings";
@@ -19,12 +19,12 @@ function Bootstrap() {
   React.useEffect(() => {
     void bootstrapStores().then(() => {
       applyTheme(useSettings.getState().theme);
-      // A language the visitor chose earlier (toggle or LanguageBanner) wins over the URL.
-      // First visits are never redirected: crawlers carry no stored preference, so every locale
-      // stays indexable at its own URL. The LanguageBanner offers a switch instead.
-      const preferred = useSettings.getState().locale;
+      // Fallback for the pre-paint redirect in index.html (same rule, see redirectLocale): a
+      // remembered choice wins, else Chinese-language browsers go to /zh. Normally the inline
+      // script has already done this and nothing happens here.
       const current = localeFromPath(window.location.pathname);
-      if (preferred && preferred !== current) navigate(localizePath(stripLocale(window.location.pathname), preferred) + window.location.search + window.location.hash, { replace: true });
+      const target = redirectLocale(current, useSettings.getState().locale, browserLocale());
+      if (target) navigate(localizePath(stripLocale(window.location.pathname), target) + window.location.search + window.location.hash, { replace: true });
     });
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
     const onChange = () => applyTheme(useSettings.getState().theme);
@@ -42,8 +42,9 @@ function Bootstrap() {
 }
 
 /**
- * First visit only: when the browser language differs from the page language, offer to switch.
- * Rendered after hydration, so prerendered HTML and crawlers never see it. Either choice is remembered.
+ * First visit only: when the browser language differs from the page language and no automatic
+ * redirect applies (English-language browser on a Chinese URL), offer to switch. Rendered after
+ * hydration, so prerendered HTML and crawlers never see it. Either choice is remembered.
  */
 function LanguageBanner() {
   const locale = useLocale();
@@ -54,7 +55,7 @@ function LanguageBanner() {
   const setLocale = useSettings((s) => s.setLocale);
   const [browser, setBrowser] = React.useState<Locale | null>(null);
   React.useEffect(() => setBrowser(browserLocale()), []);
-  if (!ready || stored != null || !browser || browser === locale) return null;
+  if (!ready || stored != null || !browser || browser === locale || redirectLocale(locale, stored, browser)) return null;
   const copy = getDict(browser).banner.language;
   const accept = () => {
     setLocale(browser);

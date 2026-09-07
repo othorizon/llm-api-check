@@ -40,6 +40,18 @@ export function localizePath(path: string, locale: Locale): string {
   return clean === "/" ? prefix : `${prefix}${clean}`;
 }
 
+/**
+ * Locale a visitor should be sent to before the page renders, or null to stay put.
+ * A remembered choice always wins. Without one, browsers whose language is a non-default
+ * locale are sent to that locale; the reverse never happens automatically (an English-language
+ * browser on a Chinese URL is only offered a switch by the banner), so crawlers, which render
+ * as en-US with no storage, never see a redirect. Mirrored by the inline script in index.html.
+ */
+export function redirectLocale(current: Locale, stored: Locale | null, browser: Locale | null): Locale | null {
+  const target = stored ?? (browser && browser !== DEFAULT_LOCALE ? browser : null);
+  return target && target !== current ? target : null;
+}
+
 /** Locale matching the browser language, or null when unknown (e.g. on the server). */
 export function browserLocale(): Locale | null {
   if (typeof navigator === "undefined") return null;

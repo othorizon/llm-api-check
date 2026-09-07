@@ -13,9 +13,33 @@
     <!--app-head-->
     <script>
       (function () {
+        var s = null;
         try {
-          var s = localStorage.getItem("wlcu:settings");
-          var t = s ? JSON.parse(s).state.theme : "system";
+          var raw = localStorage.getItem("wlcu:settings");
+          s = raw ? JSON.parse(raw).state : null;
+        } catch (e) {}
+        // Locale, before first paint. Mirrors redirectLocale() in src/i18n/core.ts: a remembered
+        // choice wins; otherwise Chinese-language browsers go to /zh (one-way, so crawlers, which
+        // render as en-US without storage, never see a redirect).
+        try {
+          var p = location.pathname;
+          var cur = p === "/zh" || p.indexOf("/zh/") === 0 ? "zh" : "en";
+          var stored = s && (s.locale === "zh" || s.locale === "en") ? s.locale : null;
+          var lang = (navigator.language || "").toLowerCase();
+          var browser = lang === "zh" || lang.indexOf("zh-") === 0 ? "zh" : "en";
+          var target = stored || (browser === "zh" ? "zh" : null);
+          if (target && target !== cur) {
+            var rest = cur === "zh" ? (p === "/zh" ? "/" : p.slice(3)) : p;
+            var to = target === "zh" ? (rest === "/" ? "/zh" : "/zh" + rest) : rest;
+            // Keep the old document invisible while the replacement loads; restore if it never comes.
+            document.documentElement.style.visibility = "hidden";
+            setTimeout(function () { document.documentElement.style.visibility = ""; }, 4000);
+            location.replace(to + location.search + location.hash);
+            return;
+          }
+        } catch (e) {}
+        try {
+          var t = s && s.theme ? s.theme : "system";
           var d = t === "dark" || (t !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
           if (d) document.documentElement.classList.add("dark");
         } catch (e) {}

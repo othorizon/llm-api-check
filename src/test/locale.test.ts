@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_LOCALE, LOCALES, htmlLang, localeFromPath, localizePath, stripLocale } from "@/i18n/core";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { runInNewContext } from "node:vm";
+import { DEFAULT_LOCALE, LOCALES, htmlLang, localeFromPath, localizePath, redirectLocale, stripLocale, type Locale } from "@/i18n/core";
 import { ROUTES } from "@/routes";
 import { seoTags } from "@/seo";
 
@@ -65,5 +68,67 @@ describe("seo tags", () => {
     const og = (locale: "en" | "zh") => seoTags("home", "/", locale).find((t) => t.attrs.property === "og:locale")?.attrs.content;
     expect(og("en")).toBe("en_US");
     expect(og("zh")).toBe("zh_CN");
+  });
+});
+
+describe("locale redirect rule", () => {
+  it("remembered choice wins in both directions", () => {
+    expect(redirectLocale("en", "zh", "en")).toBe("zh");
+    expect(redirectLocale("zh", "en", "zh")).toBe("en");
+    expect(redirectLocale("en", "en", "zh")).toBeNull();
+    expect(redirectLocale("zh", "zh", "en")).toBeNull();
+  });
+  it("without a choice, only Chinese-language browsers are redirected (one-way)", () => {
+    expect(redirectLocale("en", null, "zh")).toBe("zh");
+    expect(redirectLocale("zh", null, "en")).toBeNull();
+    expect(redirectLocale("en", null, "en")).toBeNull();
+    expect(redirectLocale("zh", null, "zh")).toBeNull();
+    expect(redirectLocale("en", null, null)).toBeNull();
+  });
+});
+
+describe("index.html inline redirect script", () => {
+  const html = readFileSync(join(process.cwd(), "index.html"), "utf8");
+  const script = html.match(/<script>([\s\S]*?)<\/script>/)![1];
+
+  /** Runs the inline script against a fake browser and returns the URL it redirected to, if any. */
+  function run(pathname: string, stored: Locale | null, language: string, search = "", hash = "") {
+    let replaced: string | null = null;
+    const settings = stored ? JSON.stringify({ state: { locale: stored, theme: "light" }, version: 0 }) : null;
+    const sandbox = {
+      location: { pathname, search, hash, replace: (u: string) => void (replaced = u) },
+      localStorage: { getItem: (k: string) => (k === "wlcu:settings" ? settings : null) },
+      navigator: { language },
+      document: { documentElement: { style: {}, classList: { add() {} } } },
+      window: { matchMedia: () => ({ matches: false }) },
+      setTimeout: () => 0,
+    };
+    runInNewContext(script, sandbox);
+    return replaced as string | null;
+  }
+
+  it("agrees with redirectLocale() and localizePath() for every case", () => {
+    const languages: Array<[string, Locale]> = [["zh-CN", "zh"], ["zh", "zh"], ["zh-TW", "zh"], ["en-US", "en"], ["fr", "en"], ["", "en"]];
+    for (const r of ROUTES) {
+      for (const current of LOCALES) {
+        for (const stored of [null, ...LOCALES] as Array<Locale | null>) {
+          for (const [language, browser] of languages) {
+            const url = localizePath(r.path, current);
+            const target = redirectLocale(current, stored, browser);
+            const expected = target ? localizePath(r.path, target) + "?x=1#top" : null;
+            expect(run(url, stored, language, "?x=1", "#top"), `${url} stored=${stored} lang=${language}`).toBe(expected);
+          }
+        }
+      }
+    }
+  });
+  it("never redirects a crawler-like visitor (en-US, no storage)", () => {
+    expect(run("/", null, "en-US")).toBeNull();
+    expect(run("/zh", null, "en-US")).toBeNull();
+    expect(run("/zh/docs", null, "en-US")).toBeNull();
+  });
+  it("does not loop and never touches unknown prefixes", () => {
+    expect(run("/zh", "zh", "zh-CN")).toBeNull();
+    expect(run("/zhx", null, "zh-CN")).toBe("/zh/zhx");
   });
 });
