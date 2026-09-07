@@ -137,6 +137,10 @@ await page.waitForSelector("h1");
 await page.waitForTimeout(300);
 await shot("16-models-mobile-zh");
 
+// dump the full local state (no secrets) so it can be reused as demo data
+const dump = await page.evaluate(() => ({ results: localStorage.getItem("wlcu:results"), providers: localStorage.getItem("wlcu:providers") }));
+const { writeFileSync } = await import("node:fs");
+writeFileSync(`${OUT}/state.json`, JSON.stringify(dump));
 // dump a little state for assertions
 const state = await page.evaluate(() => {
   const r = JSON.parse(localStorage.getItem("wlcu:results") || "{}");
