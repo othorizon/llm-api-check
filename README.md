@@ -83,7 +83,11 @@ npm run deploy:pages
 - 构建命令：`npm run build`
 - 输出目录：`dist`
 
-构建会自动生成 `_headers`（安全响应头 + 缓存策略）与 `_redirects`（SPA 回退），Pages 会直接生效。
+构建会自动生成 `_headers`（安全响应头 + 缓存策略），Pages 与 Workers 都会直接生效。
+
+> 刻意**没有**生成 `_redirects`：所有路由在构建时都已产出独立的静态 HTML，不需要 SPA 回退；
+> 而 Cloudflare 的 `_redirects` 优先级高于 `_headers`，一条 `/* /index.html 200` 通配重写会让
+> CSP 等安全响应头全部失效。未命中的路径统一交给 `404.html`。
 
 ### 自定义域名
 

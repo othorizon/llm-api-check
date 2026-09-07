@@ -5,9 +5,10 @@
   "compatibility_date": "2025-01-01",
   "assets": {
     "directory": "./dist",
-    // 目录形式的 /docs → /docs/index.html；未命中的路径回落到首页交给前端路由
+    // 目录形式的 /docs → /docs/index.html
     "html_handling": "auto-trailing-slash",
-    "not_found_handling": "single-page-application"
+    // 所有路由在构建时都已生成静态 HTML，未命中的路径返回真正的 404 而不是首页
+    "not_found_handling": "404-page"
   },
   "observability": {
     "enabled": false

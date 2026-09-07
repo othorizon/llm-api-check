@@ -273,8 +273,33 @@ for (const route of ROUTES) {
   fs.writeFileSync(out, html)
 }
 
-// 404 回退：使用首页壳，交给前端路由处理
-fs.writeFileSync(path.join(dist, '404.html'), fs.readFileSync(path.join(dist, 'index.html')))
+// 真正的 404 页面：不加载应用，避免 soft-404（否则前端路由会渲染出概览页）
+fs.writeFileSync(
+  path.join(dist, '404.html'),
+  `<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>页面不存在｜LLM 能力与性能测试台</title>
+    <meta name="robots" content="noindex,follow" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  </head>
+  <body style="margin:0;background:#f9fafb;color:#10141a;font-family:system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif">
+    <main style="max-width:520px;margin:0 auto;padding:96px 20px;line-height:1.65">
+      <p style="margin:0 0 8px;font-size:13px;letter-spacing:.08em;color:#8d95a1">404</p>
+      <h1 style="margin:0 0 12px;font-size:26px">页面不存在</h1>
+      <p style="margin:0 0 24px;color:#5b6470">这个地址没有对应的页面，可能是链接有误或已经变更。</p>
+      <p style="margin:0;color:#5b6470">
+        <a href="/" style="color:#4f46e5">返回首页</a> ·
+        <a href="/docs" style="color:#4f46e5">测试项说明</a> ·
+        <a href="/privacy" style="color:#4f46e5">隐私与安全</a>
+      </p>
+    </main>
+  </body>
+</html>
+`,
+)
 
 function sha256(s) {
   return `sha256-${crypto.createHash('sha256').update(s, 'utf8').digest('base64')}`
@@ -352,11 +377,4 @@ fs.writeFileSync(
 `,
 )
 
-fs.writeFileSync(
-  path.join(dist, '_redirects'),
-  `# 单页应用回退：静态资源优先，未命中的路径交给前端路由
-/*  /index.html  200
-`,
-)
-
-console.log(`✓ 已生成 ${ROUTES.length} 个静态页面、sitemap.xml、robots.txt、_headers、_redirects（站点地址：${SITE}）`)
+console.log(`✓ 已生成 ${ROUTES.length} 个静态页面、sitemap.xml、robots.txt、_headers、404 页面（站点地址：${SITE}）`)
