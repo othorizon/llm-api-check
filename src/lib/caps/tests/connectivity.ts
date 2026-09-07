@@ -26,8 +26,8 @@ export const connectivityTests: CapTestDef[] = [
         const facts = { latencyMs: Math.round(res.timing.totalMs), promptTokens: u.promptTokens, completionTokens: u.completionTokens, responseModel: res.model ?? null };
         const swapped = (res.adjustments ?? []).find((a) => a.includes("max_"));
         const suggestion = swapped ? { label: swapped.split(" → ")[1], extraBody: {} as Record<string, unknown>, maxTokensParam: swapped.split(" → ")[1] as "max_tokens" | "max_completion_tokens" } : undefined;
-        if (!res.content.trim() && !res.toolCalls.length) return ok("partial", msg("cap.conn.empty"), { request: req, response: responseEvidence(res), notes, facts }, suggestion ? { suggestion } : {});
-        return ok("pass", msg("cap.conn.ok", { ms: Math.round(res.timing.totalMs) }), { request: req, response: responseEvidence(res), notes, facts }, suggestion ? { suggestion } : {});
+        if (!res.content.trim() && !res.toolCalls.length) return ok("partial", msg("cap.conn.empty"), { request: req, response: responseEvidence(res), notes, facts }, suggestion ? { suggestions: [suggestion] } : {});
+        return ok("pass", msg("cap.conn.ok", { ms: Math.round(res.timing.totalMs) }), { request: req, response: responseEvidence(res), notes, facts }, suggestion ? { suggestions: [suggestion] } : {});
       } catch (e) {
         return fromError(e, { request: req });
       }

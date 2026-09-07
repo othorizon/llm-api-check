@@ -109,7 +109,7 @@ export const reasoningTests: CapTestDef[] = [
       const responses: Record<string, unknown> = {};
       const requests: Record<string, unknown> = {};
       const errors: Record<string, unknown> = {};
-      let firstEffective: (typeof REASONING_DIALECTS)[number] | null = null;
+      const effective: (typeof REASONING_DIALECTS)[number][] = [];
       let anyReduced = false;
       const accepted: string[] = [];
       for (const d of REASONING_DIALECTS) {
@@ -129,7 +129,7 @@ export const reasoningTests: CapTestDef[] = [
             const ratio = baselineAmount > 0 ? amt / baselineAmount : present ? 1 : 0;
             if (!present || ratio < 0.05) {
               verdict = "disabled";
-              if (!firstEffective) firstEffective = d;
+              effective.push(d);
             } else if (ratio < 0.4) {
               verdict = "reduced";
               anyReduced = true;
@@ -137,7 +137,7 @@ export const reasoningTests: CapTestDef[] = [
           } else {
             if (present) {
               verdict = "enabled";
-              if (!firstEffective) firstEffective = d;
+              effective.push(d);
             } else verdict = "no effect";
           }
           rows.push([d.label, true, present, amt, Math.round(res.timing.totalMs), verdict]);
@@ -150,9 +150,9 @@ export const reasoningTests: CapTestDef[] = [
       }
       const table = { columns: ["dialect", "accepted", "reasoning", "amount", "latency_ms", "verdict"], rows };
       const evidence = { request: requests, response: responses, error: Object.keys(errors).length ? errors : undefined, table, notes: [] as Msg[], facts: { reasonsByDefault, baselineAmount } };
-      if (firstEffective) {
-        const suggestion = { label: firstEffective.label, extraBody: reasonsByDefault ? firstEffective.disable : firstEffective.enable };
-        return ok("pass", msg(reasonsByDefault ? "cap.toggle.disable_ok" : "cap.toggle.enable_ok", { dialect: firstEffective.label }), evidence, { suggestion });
+      if (effective.length) {
+        const suggestions = effective.map((d) => ({ label: d.label, extraBody: reasonsByDefault ? d.disable : d.enable }));
+        return ok("pass", msg(reasonsByDefault ? "cap.toggle.disable_ok" : "cap.toggle.enable_ok", { n: effective.length, dialects: effective.map((d) => d.label).join("; ") }), evidence, { suggestions });
       }
       if (reasonsByDefault && anyReduced) return ok("partial", msg("cap.toggle.reduced_only"), evidence);
       if (accepted.length === 0) return ok("unsupported", msg("cap.toggle.all_rejected"), evidence);

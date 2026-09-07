@@ -29,12 +29,12 @@ export function CapDetail({ session, modelId, testId, onClose }: { session: CapS
   const fm = useMsg();
   const updateModel = useProviders((s) => s.updateModel);
   const models = useProviders((s) => s.models);
-  const [applied, setApplied] = React.useState(false);
+  const [applied, setApplied] = React.useState<number | null>(null);
   const snap = session.models.find((m) => m.id === modelId);
   const outcome: CapOutcome | undefined = modelId && testId ? session.results[modelId]?.outcomes[testId] : undefined;
   const info = testId ? testInfo(t, testId) : null;
   const liveModel = models.find((m) => m.id === modelId);
-  React.useEffect(() => setApplied(false), [modelId, testId]);
+  React.useEffect(() => setApplied(null), [modelId, testId]);
   return (
     <Drawer open={!!outcome} onOpenChange={(o) => !o && onClose()} title={info?.name ?? ""} description={snap ? `${snap.label} · ${snap.providerName}` : undefined}>
       {outcome && info ? (
@@ -49,25 +49,32 @@ export function CapDetail({ session, modelId, testId, onClose }: { session: CapS
             <div className="mb-1 mt-2 font-semibold text-ink">{t.common.why}</div>
             <p>{info.why}</p>
           </div>
-          {outcome.suggestion ? (
+          {outcome.suggestions?.length ? (
             <div className="rounded-md border border-good/40 bg-good/5 p-3">
               <div className="mb-1 text-sm font-semibold">{t.caps.suggestion}</div>
-              <p className="mb-2 text-xs text-ink-2">{t.caps.suggestionHint}</p>
-              {Object.keys(outcome.suggestion.extraBody).length ? <CodeBlock code={JSON.stringify(outcome.suggestion.extraBody, null, 2)} copyLabel={t.common.copy} /> : <div className="mono rounded-md border border-border bg-surface px-3 py-2 text-xs">{t.models.maxTokensParam}: {outcome.suggestion.maxTokensParam}</div>}
-              {liveModel ? (
-                <Button
-                  size="sm"
-                  variant="primary"
-                  className="mt-2"
-                  disabled={applied}
-                  onClick={() => {
-                    updateModel(liveModel.id, { extraBody: { ...(liveModel.extraBody ?? {}), ...outcome.suggestion!.extraBody }, ...(outcome.suggestion!.maxTokensParam ? { maxTokensParam: outcome.suggestion!.maxTokensParam } : {}) });
-                    setApplied(true);
-                  }}
-                >
-                  {applied ? t.caps.applied : t.caps.applyToModel}
-                </Button>
-              ) : null}
+              <p className="mb-3 text-xs text-ink-2">{t.caps.suggestionHint}</p>
+              <div className="space-y-3">
+                {outcome.suggestions.map((sug, i) => (
+                  <div key={i}>
+                    <div className="mono mb-1 text-xs text-ink-2">{sug.label}</div>
+                    {Object.keys(sug.extraBody).length ? <CodeBlock code={JSON.stringify(sug.extraBody, null, 2)} copyLabel={t.common.copy} /> : <div className="mono rounded-md border border-border bg-surface px-3 py-2 text-xs">{t.models.maxTokensParam}: {sug.maxTokensParam}</div>}
+                    {liveModel ? (
+                      <Button
+                        size="sm"
+                        variant={applied === i ? "secondary" : "primary"}
+                        className="mt-2"
+                        disabled={applied === i}
+                        onClick={() => {
+                          updateModel(liveModel.id, { extraBody: { ...(liveModel.extraBody ?? {}), ...sug.extraBody }, ...(sug.maxTokensParam ? { maxTokensParam: sug.maxTokensParam } : {}) });
+                          setApplied(i);
+                        }}
+                      >
+                        {applied === i ? t.caps.applied : t.caps.applyToModel}
+                      </Button>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
             </div>
           ) : null}
           {outcome.evidence.notes.length ? (
@@ -214,10 +221,14 @@ export function CapMatrix({ session }: { session: CapSession }) {
                                 <button type="button" onClick={() => setSel({ modelId: snap.id, testId: id })} className="group flex w-full flex-col items-start gap-1 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60">
                                   <StatusPill status={o.status} label={t.status[o.status]} compact />
                                   <span className="line-clamp-2 text-xs leading-4 text-ink-2 group-hover:text-ink">{fm(o.summary)}</span>
-                                  {o.suggestion ? (
-                                    <Badge tone="good" className="mono">
-                                      {o.suggestion.label}
-                                    </Badge>
+                                  {o.suggestions?.length ? (
+                                    <span className="flex flex-wrap gap-1">
+                                      {o.suggestions.map((sug, si) => (
+                                        <Badge key={si} tone="good" className="mono">
+                                          {sug.label}
+                                        </Badge>
+                                      ))}
+                                    </span>
                                   ) : null}
                                 </button>
                               ) : isCurrent ? (
@@ -252,7 +263,7 @@ function highlightsFor(session: CapSession, modelId: string, t: ReturnType<typeo
   if (st("reasoning.default") === "pass") out.push({ tone: "neutral", text: h.reasoning_on });
   else if (st("reasoning.default") === "fail") out.push({ tone: "neutral", text: h.reasoning_off });
   const tog = o["reasoning.toggle"];
-  if (tog?.suggestion) out.push({ tone: "good", text: h.toggle.replace("{dialect}", tog.suggestion.label) });
+  if (tog?.suggestions?.length) out.push({ tone: "good", text: h.toggle.replace("{dialect}", tog.suggestions.map((x) => x.label).join(" · ")) });
   const toolModes = [
     ["tools.auto", "auto"],
     ["tools.required", "required"],

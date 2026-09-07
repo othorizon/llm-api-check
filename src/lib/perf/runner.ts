@@ -1,7 +1,8 @@
 import { normalizeUsage } from "@/lib/llm/types";
 import type { CompletionResult, ChatMessage } from "@/lib/llm/types";
 import { estimateTokens } from "@/lib/llm/tokens";
-import { toLlmError } from "@/lib/llm/errors";
+import { LlmError, mentionsParam, toLlmError } from "@/lib/llm/errors";
+import { REASONING_DIALECTS } from "@/lib/caps/reasoning-dialects";
 import { sendBound, type BoundModel } from "@/lib/llm/model-client";
 import { uid } from "@/lib/utils/id";
 import { buildPerfPrompt, makeRng, randomSeed } from "./prompts";
@@ -68,6 +69,18 @@ const sleep = (ms: number, signal: AbortSignal) =>
     };
     signal.addEventListener("abort", onAbort, { once: true });
   });
+
+/** Extra body parameters implied by the config's disable-reasoning choice. */
+export function reasoningParams(config: Pick<PerfConfig, "disableReasoning">): Record<string, unknown> {
+  const d = config.disableReasoning ? REASONING_DIALECTS.find((x) => x.id === config.disableReasoning) : null;
+  return d ? { ...d.disable } : {};
+}
+
+/** True when a 4xx complains about one of the top-level keys we added for the reasoning dialect. */
+export function isReasoningParamRejection(err: LlmError, params: Record<string, unknown>): boolean {
+  if (err.kind !== "bad_request") return false;
+  return Object.keys(params).some((k) => mentionsParam(err, k));
+}
 
 export function sampleFromResult(res: CompletionResult, base: Pick<RunSample, "id" | "modelId" | "mode" | "cache" | "index" | "startedAt" | "warmup">): RunSample {
   const u = normalizeUsage(res.usage);
@@ -191,6 +204,9 @@ export async function runPerformance(input: PerfRunInput): Promise<Record<string
   /** In "hit" mode every request of a model reuses exactly the same messages. */
   const fixedPrompt = new Map<string, ChatMessage[]>();
   const targetWords = Math.round(config.maxTokens * (config.promptLang === "zh" ? 1.2 : 0.9));
+  const extras = reasoningParams(config);
+  /** Models whose provider rejected the reasoning parameters: send without them from then on. */
+  const droppedFor = new Set<string>();
   let done = 0;
   const progress = (extra: Partial<PerfProgress>) => onProgress({ total: jobs.length, done, phase: "miss", currentModelId: null, currentMode: null, currentCache: null, currentIndex: null, waitingMs: null, ...extra });
 
@@ -223,20 +239,34 @@ export async function runPerformance(input: PerfRunInput): Promise<Record<string
     }
     const stream = job.mode === "stream";
     let lastLive = 0;
-    try {
-      const res = await sendBound(job.bm, { messages, stream }, {
-        signal,
-        maxTokens: config.maxTokens,
-        retryOnRateLimit: true,
-        onChunk: ({ acc, elapsedMs }) => {
+    const sendOpts = {
+      signal,
+      maxTokens: config.maxTokens,
+      retryOnRateLimit: true,
+      onChunk: ({ acc, elapsedMs }: { acc: { rawContent: string; reasoning: string }; elapsedMs: number }) => {
           if (!onLive) return;
           const now = performance.now();
           if (now - lastLive < 80) return;
           lastLive = now;
           onLive({ modelId, mode: job.mode, cache: job.cache, index: job.index, elapsedMs, approxTokens: estimateTokens(acc.rawContent) + estimateTokens(acc.reasoning), preview: acc.rawContent.slice(-240), reasoningPreview: acc.reasoning.slice(-160) });
-        },
-      });
+      },
+    };
+    try {
+      let res: CompletionResult;
+      let dropped = droppedFor.has(modelId);
+      const withExtras = dropped ? {} : extras;
+      try {
+        res = await sendBound(job.bm, { messages, stream, ...withExtras }, sendOpts);
+      } catch (e) {
+        const err = toLlmError(e);
+        if (!dropped && Object.keys(extras).length && isReasoningParamRejection(err, extras)) {
+          droppedFor.add(modelId);
+          dropped = true;
+          res = await sendBound(job.bm, { messages, stream }, sendOpts);
+        } else throw e;
+      }
       const sample = sampleFromResult(res, base);
+      if (dropped && Object.keys(extras).length) sample.reasoningParamDropped = true;
       samples[modelId].push(sample);
       onSample(sample);
     } catch (e) {

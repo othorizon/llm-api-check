@@ -29,6 +29,12 @@ export interface Evidence {
   table?: { columns: string[]; rows: (string | number | boolean | null)[][] };
 }
 
+export interface Suggestion {
+  label: string;
+  extraBody: Record<string, unknown>;
+  maxTokensParam?: "max_tokens" | "max_completion_tokens";
+}
+
 export interface CapOutcome {
   testId: string;
   status: CapStatus;
@@ -38,7 +44,8 @@ export interface CapOutcome {
   durationMs: number;
   startedAt: number;
   /** A model-setting change the user can apply with one click (e.g. the working "disable reasoning" dialect). */
-  suggestion?: { label: string; extraBody: Record<string, unknown>; maxTokensParam?: "max_tokens" | "max_completion_tokens" };
+  /** Working parameters the user can copy or apply to the model (e.g. every dialect that disables reasoning). */
+  suggestions?: Suggestion[];
 }
 
 export interface CapContext {

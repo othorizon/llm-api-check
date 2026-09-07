@@ -78,6 +78,10 @@ export function MethodologyContent({ locale }: { locale: Locale }) {
           命中与否以服务商在 usage 中返回的缓存字段为准：<code>prompt_tokens_details.cached_tokens</code>（OpenAI、通义千问、火山方舟、Kimi 等）、<code>prompt_cache_hit_tokens</code>（DeepSeek）、<code>cache_read_input_tokens</code>（Anthropic 风格网关）。表格中的“缓存命中”列显示命中 token 占输入 token 的比例；不命中组若出现命中会以警示色标出。多数服务商只缓存达到一定长度的前缀（OpenAI ≥ 1,024 tokens），所以测命中时请选择“长”输入长度。
         </p>
         <p>运行顺序为<strong>跨模型轮转</strong>（A、B、C、A、B、C…），以减少时段性波动对某一个模型的偏向。场景评分默认基于不命中组；只跑命中组时会在评分依据中注明。</p>
+        <h2 id="reasoning">关闭思维链</h2>
+        <p>
+          推理模型在输出可见内容前会先“思考”，这段时间会算进 TTFT。性能测试默认随每个请求发送 <code>thinking: {"{ type: \"disabled\" }"}</code>（火山方舟、智谱、Kimi、DeepSeek 等使用的写法），你可以切换为 <code>reasoning_effort: "none"</code>、<code>enable_thinking: false</code> 等其他写法，或选择不发送。能力测试中的“关闭（或开启）推理”一项会告诉你某个模型到底认哪一种写法；性能页会在选项下方直接列出已验证的结果。若服务商以 HTTP 400 拒绝该参数，请求会去掉参数重发，并在结果中标注受影响的模型。
+        </p>
         <h2 id="scores">场景评分</h2>
         <p>评分是把测得的中位数映射到 0–100 的分段线性函数，再叠加尾延迟、吞吐与失败的惩罚。等级：A ≥ 85，B ≥ 70，C ≥ 55，D ≥ 40，其余 F。评分只是把数字翻译成可读的结论，具体阈值如下：</p>
         <table>
@@ -204,6 +208,10 @@ export function MethodologyContent({ locale }: { locale: Locale }) {
         Whether a request hit is read from the provider's usage fields: <code>prompt_tokens_details.cached_tokens</code> (OpenAI, Qwen, Ark, Kimi…), <code>prompt_cache_hit_tokens</code> (DeepSeek), <code>cache_read_input_tokens</code> (Anthropic-style gateways). The “Cached” column shows cached tokens as a share of prompt tokens; a hit inside the miss block is flagged in a warning colour. Most providers only cache prefixes above a minimum length (OpenAI ≥ 1,024 tokens), so pick the long input size when measuring hits.
       </p>
       <p>Requests are scheduled <strong>round-robin across models</strong> (A, B, C, A, B, C…) so that time-of-day variance does not favour one model. Scenario scores use the cache-miss runs; when only the hit block was run, the score notes say so.</p>
+      <h2 id="reasoning">Disabling reasoning</h2>
+      <p>
+        Reasoning models “think” before their first visible token, and that time lands in TTFT. By default the performance test sends <code>thinking: {"{ type: \"disabled\" }"}</code> (the dialect used by Volcengine Ark, Zhipu, Kimi, DeepSeek and others) with every request; you can switch to <code>reasoning_effort: "none"</code>, <code>enable_thinking: false</code> or any other dialect, or send nothing. The “turn reasoning off (or on)” probe in the capability test tells you which dialect a model honours, and the performance page lists those findings under the selector. If a provider rejects the parameter with HTTP 400, the request is re-sent without it and the affected models are flagged in the results.
+      </p>
       <h2 id="scores">Scenario scores</h2>
       <p>A score maps the measured medians through a piecewise-linear curve to 0–100 and subtracts penalties for tail latency, low throughput and failures. Grades: A ≥ 85, B ≥ 70, C ≥ 55, D ≥ 40, otherwise F. Scores only translate numbers into a readable verdict; the thresholds are:</p>
       <table>

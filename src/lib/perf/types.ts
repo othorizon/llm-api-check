@@ -20,6 +20,8 @@ export interface PerfConfig {
   intervalMs: number;
   /** Pause after the warm-up request so the provider can build the cache (ms). */
   cacheWarmDelayMs: number;
+  /** Reasoning dialect id (see reasoning-dialects.ts) whose "disable" parameters are sent with every request; null sends nothing. */
+  disableReasoning: string | null;
 }
 
 export const PERF_CONFIG_VERSION = 2;
@@ -33,6 +35,7 @@ export const DEFAULT_PERF_CONFIG: PerfConfig = {
   maxTokens: 256,
   intervalMs: 500,
   cacheWarmDelayMs: 3000,
+  disableReasoning: "thinking_type",
 };
 
 export interface RunSample {
@@ -44,6 +47,8 @@ export interface RunSample {
   startedAt: number;
   /** Warm-up requests populate the cache and are excluded from statistics. */
   warmup?: boolean;
+  /** The provider rejected the disable-reasoning parameters; the request was re-sent without them. */
+  reasoningParamDropped?: boolean;
   ok: boolean;
   error?: { kind: string; message: string; status?: number | null };
   /** Time to first token of any kind (reasoning, content or tool call). */

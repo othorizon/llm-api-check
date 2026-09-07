@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { interp, percentile, summarize } from "@/lib/perf/stats";
 import { computeScores, gradeOf } from "@/lib/perf/scoring";
-import { aggregate, buildJobs, requestsPerModel, sampleFromResult } from "@/lib/perf/runner";
+import { aggregate, buildJobs, isReasoningParamRejection, reasoningParams, requestsPerModel, sampleFromResult } from "@/lib/perf/runner";
+import { LlmError } from "@/lib/llm/errors";
 import { DEFAULT_PERF_CONFIG, type RunSample } from "@/lib/perf/types";
 import type { CompletionResult } from "@/lib/llm/types";
 
@@ -55,6 +56,20 @@ describe("scoring", () => {
     const hitOnly = aggregate("m", [sample({ cache: "hit" })]);
     expect(hitOnly.scoredFrom).toBe("hit");
     expect(hitOnly.scores[0].reasons.some((x) => x.code === "score.from_hit")).toBe(true);
+  });
+});
+
+describe("reasoning parameters", () => {
+  it("defaults to thinking:{type:disabled} and can be switched off", () => {
+    expect(reasoningParams(DEFAULT_PERF_CONFIG)).toEqual({ thinking: { type: "disabled" } });
+    expect(reasoningParams({ disableReasoning: "enable_thinking" })).toEqual({ enable_thinking: false });
+    expect(reasoningParams({ disableReasoning: null })).toEqual({});
+  });
+  it("recognises a rejection of the dialect's own key", () => {
+    const params = reasoningParams(DEFAULT_PERF_CONFIG);
+    expect(isReasoningParamRejection(new LlmError("bad_request", "x", { status: 400, providerMessage: "Unrecognized request argument supplied: thinking" }), params)).toBe(true);
+    expect(isReasoningParamRejection(new LlmError("bad_request", "x", { status: 400, providerMessage: "Invalid model" }), params)).toBe(false);
+    expect(isReasoningParamRejection(new LlmError("auth", "x", { status: 401, providerMessage: "thinking" }), params)).toBe(false);
   });
 });
 

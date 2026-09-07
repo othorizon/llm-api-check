@@ -16,6 +16,8 @@ import { PerfSummaryTable, ScenarioMatrix, PerfCharts, RunLog, EstimatedNote, Ca
 import { SessionActions } from "@/components/results/SessionActions";
 import { DEFAULT_PERF_CONFIG, PERF_CONFIG_VERSION, type CacheMode, type PerfConfig, type PerfSession } from "@/lib/perf/types";
 import { requestsPerModel } from "@/lib/perf/runner";
+import { REASONING_DIALECTS } from "@/lib/caps/reasoning-dialects";
+import type { CapSession } from "@/lib/caps/types";
 import { useRun } from "@/lib/store/run";
 import { useResults } from "@/lib/store/results";
 import { useProviders } from "@/lib/store/providers";
@@ -109,6 +111,52 @@ function LivePanel({ session }: { session: PerfSession }) {
   );
 }
 
+function dialectLabel(id: string | null | undefined, none: string) {
+  if (!id) return none;
+  return REASONING_DIALECTS.find((d) => d.id === id)?.label ?? id;
+}
+
+function ReasoningDroppedNote({ session }: { session: PerfSession }) {
+  const t = useT();
+  const rows = session.models
+    .map((snap) => ({ snap, n: (session.results[snap.id]?.samples ?? []).filter((s) => s.reasoningParamDropped).length }))
+    .filter((x) => x.n > 0);
+  if (!rows.length) return null;
+  return (
+    <ul className="space-y-0.5 text-xs text-warning-ink">
+      {rows.map(({ snap, n }) => (
+        <li key={snap.id}>{interpolate(t.perf.reasoningDropped, { model: snap.label, dialect: dialectLabel(session.config.disableReasoning, t.perf.reasoningOffNone), n })}</li>
+      ))}
+    </ul>
+  );
+}
+
+/** What the capability test found out about switching reasoning off, per selected model. */
+function KnownDialects({ modelIds }: { modelIds: string[] }) {
+  const t = useT();
+  const sessions = useResults((s) => s.sessions);
+  const models = useProviders((s) => s.models);
+  const rows: { label: string; dialects: string[] }[] = [];
+  for (const id of modelIds) {
+    const model = models.find((m) => m.id === id);
+    if (!model) continue;
+    const session = sessions.find((x): x is CapSession => x.kind === "capability" && !!x.results[id]?.outcomes["reasoning.toggle"]);
+    const outcome = session?.results[id]?.outcomes["reasoning.toggle"];
+    if (!outcome) continue;
+    const facts = outcome.evidence.facts ?? {};
+    if (facts.reasonsByDefault === false) rows.push({ label: model.label || model.model, dialects: [] });
+    else if (outcome.suggestions?.length) rows.push({ label: model.label || model.model, dialects: outcome.suggestions.map((x) => x.label) });
+  }
+  if (!rows.length) return null;
+  return (
+    <ul className="mt-2 space-y-0.5 text-xs leading-5 text-muted">
+      {rows.map((r) => (
+        <li key={r.label}>{r.dialects.length ? interpolate(t.perf.reasoningKnown, { model: r.label, dialects: r.dialects.join("; ") }) : interpolate(t.perf.reasoningNotNeeded, { model: r.label })}</li>
+      ))}
+    </ul>
+  );
+}
+
 export function PerfSessionView({ session, showActions = true }: { session: PerfSession; showActions?: boolean }) {
   const t = useT();
   const locale = useLocale();
@@ -122,7 +170,7 @@ export function PerfSessionView({ session, showActions = true }: { session: Perf
           <div>
             <CardTitle>{t.perf.summary}</CardTitle>
             <CardDescription>
-              {fmtDate(session.createdAt, locale === "zh" ? "zh-CN" : "en")} · {t.perf.cacheModes[cfg.cacheMode].name} · {t.perf.promptSizes[cfg.promptSize]} · {t.perf.promptLangs[cfg.promptLang]} · {cfg.runs} {t.common.runs} · max {cfg.maxTokens} {t.common.tokens}
+              {fmtDate(session.createdAt, locale === "zh" ? "zh-CN" : "en")} · {t.perf.cacheModes[cfg.cacheMode].name} · {t.perf.promptSizes[cfg.promptSize]} · {t.perf.promptLangs[cfg.promptLang]} · {cfg.runs} {t.common.runs} · max {cfg.maxTokens} {t.common.tokens} · {t.perf.reasoningOff}: <span className="mono">{dialectLabel(cfg.disableReasoning, t.perf.reasoningOffNone)}</span>
               {session.status === "aborted" ? ` · ${t.common.aborted}` : ""}
             </CardDescription>
           </div>
@@ -135,8 +183,9 @@ export function PerfSessionView({ session, showActions = true }: { session: Perf
             <CacheComparisonList session={session} />
           </CardBody>
         ) : null}
-        <CardBody className="border-t border-border py-2">
+        <CardBody className="border-t border-border space-y-1 py-2">
           <EstimatedNote session={session} />
+          <ReasoningDroppedNote session={session} />
         </CardBody>
       </Card>
       <Card>
@@ -218,6 +267,17 @@ function PerfWorkbench() {
                 </p>
               ) : null}
             </div>
+            <Field label={t.perf.reasoningOff} hint={t.perf.reasoningOffHint}>
+              <Select value={config.disableReasoning ?? ""} onChange={(e) => update({ disableReasoning: e.target.value || null })} disabled={running} className="mono text-xs">
+                {REASONING_DIALECTS.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.label}
+                  </option>
+                ))}
+                <option value="">{t.perf.reasoningOffNone}</option>
+              </Select>
+              <KnownDialects modelIds={selected} />
+            </Field>
             <div className="grid grid-cols-2 gap-3">
               <Field label={t.perf.promptSize}>
                 <Select value={config.promptSize} onChange={(e) => update({ promptSize: e.target.value as PerfConfig["promptSize"] })} disabled={running}>
