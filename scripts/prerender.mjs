@@ -9,7 +9,7 @@ const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const dist = join(root, "dist");
 const ssrDir = join(root, "dist-ssr");
 const template = readFileSync(join(dist, "index.html"), "utf8");
-const siteUrl = (process.env.VITE_SITE_URL || process.env.CF_PAGES_URL || "").replace(/\/+$/, "");
+const siteUrl = (process.env.VITE_SITE_URL || process.env.CF_PAGES_URL || "https://llmapicheck.dev").replace(/\/+$/, "");
 
 const entryFile = join(ssrDir, "entry-server.js");
 if (!existsSync(entryFile)) {

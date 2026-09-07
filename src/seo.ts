@@ -8,8 +8,10 @@ export interface SeoTag {
   text?: string;
 }
 
+export const PRODUCTION_URL = "https://llmapicheck.dev";
+
 export function siteUrl(): string {
-  const v = (import.meta.env?.VITE_SITE_URL as string | undefined) ?? "";
+  const v = (import.meta.env?.VITE_SITE_URL as string | undefined) || PRODUCTION_URL;
   return v.replace(/\/+$/, "");
 }
 

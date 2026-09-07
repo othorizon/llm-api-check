@@ -2,13 +2,13 @@ import type { Dict } from "./en";
 
 export const zh: Dict = {
   meta: {
-    siteName: "Which LLM Can I Use",
-    shortName: "WhichLLM",
-    tagline: "在浏览器里测 LLM 的能力与性能",
+    siteName: "LLM API Check",
+    shortName: "LLM API Check",
+    tagline: "在浏览器里检测任意大模型 API",
     description:
       "在浏览器中直接测试任意 OpenAI 兼容模型：首 token 延迟（TTFT）、吞吐（tokens/s）、提示词缓存、推理开关、工具调用、结构化输出与视觉理解。无服务器、无埋点，API Key 不离开你的浏览器。",
     pages: {
-      home: { title: "Which LLM Can I Use — 大模型能力与性能测试工具（纯浏览器运行）", description: "测量 OpenAI、DeepSeek、通义千问、豆包、MiniMax、GLM、Kimi、Gemini 及任意 OpenAI 兼容接口的 TTFT、tokens/s、缓存命中，并探测思维链控制、工具调用、JSON Schema 与视觉能力。全部在浏览器中完成。" },
+      home: { title: "LLM API Check — 在浏览器里检测大模型 API 的性能与能力", description: "测量 OpenAI、DeepSeek、通义千问、豆包、MiniMax、GLM、Kimi、Gemini 及任意 OpenAI 兼容接口的 TTFT、tokens/s、缓存命中，并探测思维链控制、工具调用、JSON Schema 与视觉能力。全部在浏览器中完成。" },
       models: { title: "模型与服务商", description: "录入要测试的模型：选择服务商预设或填写任意 OpenAI 兼容 Base URL。密钥仅保存在你的浏览器中。" },
       performance: { title: "性能测试 — TTFT、tokens/s、提示词缓存", description: "使用随机化提示词测量流式 / 非流式延迟、吞吐与缓存命中时的速度，并给出“是否适合实时语音对话”等场景评分。" },
       capabilities: { title: "能力测试 — 思维链、工具调用、JSON Schema、视觉、缓存", description: "探测任意模型的推理控制参数（reasoning_effort、thinking 开关）、tool_choice 模式、JSON Schema strict / 嵌套输出、图片输入与提示词缓存支持。" },

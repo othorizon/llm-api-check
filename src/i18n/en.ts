@@ -1,12 +1,12 @@
 export const en = {
   meta: {
-    siteName: "Which LLM Can I Use",
-    shortName: "WhichLLM",
-    tagline: "Browser-side LLM capability & performance tester",
+    siteName: "LLM API Check",
+    shortName: "LLM API Check",
+    tagline: "Check any LLM API from your browser",
     description:
       "Test any OpenAI-compatible model from your browser: time-to-first-token, tokens/s, prompt caching, reasoning controls, tool calling, structured output and vision. No server, no tracking — API keys never leave your browser.",
     pages: {
-      home: { title: "Which LLM Can I Use — LLM capability & performance tester (browser-only)", description: "Measure TTFT, tokens/s, cache hits and probe reasoning, tool calling, JSON schema and vision support of OpenAI, DeepSeek, Qwen, Doubao, MiniMax, GLM, Kimi, Gemini and any OpenAI-compatible endpoint. Runs entirely in your browser." },
+      home: { title: "LLM API Check — test any LLM API from your browser: latency, reasoning, tools, JSON, vision", description: "Measure TTFT, tokens/s, cache hits and probe reasoning, tool calling, JSON schema and vision support of OpenAI, DeepSeek, Qwen, Doubao, MiniMax, GLM, Kimi, Gemini and any OpenAI-compatible endpoint. Runs entirely in your browser." },
       models: { title: "Models & providers", description: "Register the models you want to test: choose a provider preset or any OpenAI-compatible base URL. Keys are stored only in your browser." },
       performance: { title: "Performance test — TTFT, tokens/s, prompt cache", description: "Benchmark streaming and non-streaming latency, throughput and cache-hit speed with randomised prompts, and get scenario scores such as real-time voice suitability." },
       capabilities: { title: "Capability test — reasoning, tools, JSON schema, vision, caching", description: "Probe reasoning controls (reasoning_effort, thinking toggles), tool_choice modes, JSON Schema strict/nested output, image input and prompt caching for any model." },

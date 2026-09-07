@@ -22,15 +22,15 @@ p{font-size:28px;line-height:1.4;color:#c3c2b7;margin:20px 0 0;position:relative
 .chip{border:1px solid rgba(255,255,255,.18);border-radius:999px;padding:10px 18px;font-size:22px;color:#e8e8e3;background:rgba(255,255,255,.04)}
 .brand{font-size:26px;font-weight:600;letter-spacing:-.01em}
 </style></head><body><div class="bg"></div>
-<div class="top"><div class="logo"><svg width="36" height="36" viewBox="0 0 32 32"><path d="M9 21.5 12.2 10h2.4l2.1 7.4L18.8 10h2.4l3.2 11.5h-2.5l-2-7.6-2.2 7.6h-2.2l-2.2-7.6-2 7.6z" fill="#0b0b0b"/></svg></div><div class="brand">Which LLM Can I Use</div></div>
-<div><h1>Test any LLM's speed &amp; capabilities — from your browser</h1><p>TTFT · tokens/s · prompt cache · reasoning controls · tool calling · JSON Schema · vision · message formats. No server, keys never leave your browser.</p></div>
+<div class="top"><div class="logo"><svg width="36" height="36" viewBox="0 0 32 32"><path d="M6 19h4.6l2-6 3 10" fill="none" stroke="#0b0b0b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path d="M15.6 23 26 10" fill="none" stroke="#16a34a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="brand">LLM API Check</div></div>
+<div><h1>Check any LLM API from your browser</h1><p>Latency &amp; throughput · prompt cache · reasoning controls · tool calling · JSON Schema · vision · message formats. No server, your API keys never leave your browser.</p></div>
 <div class="chips"><span class="chip">OpenAI</span><span class="chip">DeepSeek</span><span class="chip">Qwen 通义千问</span><span class="chip">Doubao 豆包</span><span class="chip">MiniMax</span><span class="chip">GLM</span><span class="chip">Kimi</span><span class="chip">Gemini</span><span class="chip">+ any OpenAI-compatible API</span></div>
 </body></html>`;
 await page.setViewportSize({ width: 1200, height: 630 });
 await page.setContent(og);
 await page.screenshot({ path: join(root, "public/og.png"), type: "png" });
 
-const icon = `<!doctype html><html><body style="margin:0;background:#0b0b0b;width:180px;height:180px;display:flex;align-items:center;justify-content:center"><svg width="150" height="150" viewBox="0 0 32 32"><path d="M9 21.5 12.2 10h2.4l2.1 7.4L18.8 10h2.4l3.2 11.5h-2.5l-2-7.6-2.2 7.6h-2.2l-2.2-7.6-2 7.6z" fill="#fff"/></svg></body></html>`;
+const icon = `<!doctype html><html><body style="margin:0;background:#0b0b0b;width:180px;height:180px;display:flex;align-items:center;justify-content:center"><svg width="150" height="150" viewBox="0 0 32 32"><path d="M6 19h4.6l2-6 3 10" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path d="M15.6 23 26 10" fill="none" stroke="#22c55e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></body></html>`;
 await page.setViewportSize({ width: 180, height: 180 });
 await page.setContent(icon);
 await page.screenshot({ path: join(root, "public/apple-touch-icon.png"), type: "png" });

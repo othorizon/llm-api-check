@@ -22,7 +22,8 @@ export function Logo({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 32 32" className={cn("h-6 w-6", className)} aria-hidden>
       <rect x="2" y="2" width="28" height="28" rx="7" fill="currentColor" />
-      <path d="M9 21.5 12.2 10h2.4l2.1 7.4L18.8 10h2.4l3.2 11.5h-2.5l-2-7.6-2.2 7.6h-2.2l-2.2-7.6-2 7.6z" fill="var(--bg)" />
+      <path d="M6 19h4.6l2-6 3 10" fill="none" stroke="var(--bg)" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M15.6 23 26 10" fill="none" stroke="#22c55e" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

@@ -2,9 +2,11 @@
 //   npm run deploy            -> builds and runs `wrangler deploy`
 //   npm run deploy:pages      -> alternative: Cloudflare Pages
 // No Worker code runs: the site is 100% static. Browser -> LLM provider only.
+// Custom domain: add llmapicheck.dev under Workers -> Settings -> Domains & Routes in the dashboard
+// (or run `wrangler deploy --routes llmapicheck.dev` once the zone is in your account).
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "which-llm-i-can-use",
+  "name": "llmapicheck",
   "compatibility_date": "2025-09-01",
   "assets": {
     "directory": "./dist",

@@ -13,7 +13,7 @@ export function SessionActions({ session, onDeleted }: { session: Session; onDel
   const remove = useResults((s) => s.remove);
   const [copied, setCopied] = React.useState(false);
   const stamp = new Date(session.createdAt).toISOString().replace(/[:.]/g, "-").slice(0, 19);
-  const base = `whichllm-${session.kind}-${stamp}`;
+  const base = `llmapicheck-${session.kind}-${stamp}`;
   return (
     <div className="flex flex-wrap items-center gap-1">
       <Tip content={t.results.exportJson}>

@@ -1,9 +1,9 @@
 {
-  "name": "which-llm-i-can-use",
+  "name": "llmapicheck",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Browser-only LLM capability & performance tester. Probe TTFT, throughput, prompt caching, reasoning, tool calling, structured output and vision support of any OpenAI-compatible model — no server, your API keys never leave your browser.",
+  "description": "LLM API Check — browser-only LLM capability & performance tester. Probe TTFT, throughput, prompt caching, reasoning, tool calling, structured output and vision support of any OpenAI-compatible model — no server, your API keys never leave your browser.",
   "license": "MIT",
   "scripts": {
     "dev": "vite",

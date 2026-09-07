@@ -1,10 +1,21 @@
 {
-  "name": "Which LLM Can I Use",
-  "short_name": "WhichLLM",
-  "description": "Browser-only LLM capability & performance tester.",
+  "name": "LLM API Check",
+  "short_name": "LLM API Check",
+  "description": "Check any LLM API from your browser: latency, reasoning, tools, JSON, vision.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f7f7f5",
   "theme_color": "#0b0b0b",
-  "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }, { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }]
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
 }

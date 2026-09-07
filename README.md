@@ -1,4 +1,4 @@
-# Which LLM Can I Use
+# LLM API Check
 
 **Browser-only LLM capability & performance tester.** Register any OpenAI-compatible model (OpenAI, DeepSeek, Qwen/DashScope, Volcengine Ark/Doubao, MiniMax, Zhipu GLM, Moonshot Kimi, Gemini, xAI, Mistral, Groq, OpenRouter, Ollama, vLLM, LiteLLM, …) and measure it **from your browser** — no backend, no analytics, API keys never leave the page.
 
@@ -23,12 +23,12 @@ To try the UI without real keys, add a **Custom** provider with base URL `http:/
 ## Build
 
 ```bash
-VITE_SITE_URL=https://your-domain.example npm run build
+VITE_SITE_URL=https://llmapicheck.dev npm run build
 ```
 
 `build` runs the client build, an SSR build and `scripts/prerender.mjs`, which writes one HTML file per route and locale into `dist/`, plus `404.html`, `robots.txt`, `sitemap.xml` and `_headers` (CSP and other security headers).
 
-`VITE_SITE_URL` (or Cloudflare's `CF_PAGES_URL`) is used for canonical URLs, `hreflang` alternates, Open Graph URLs and the sitemap. Without it those tags are omitted and no sitemap is written.
+`VITE_SITE_URL` (or Cloudflare's `CF_PAGES_URL`) is used for canonical URLs, `hreflang` alternates, Open Graph URLs and the sitemap. It defaults to `https://llmapicheck.dev`, the production domain; set it when deploying a copy elsewhere.
 
 ## Deploy to Cloudflare
 
@@ -40,7 +40,7 @@ The site is 100 % static. Requests go from the visitor's browser straight to the
 
 ```bash
 npx wrangler login
-VITE_SITE_URL=https://which-llm.your-subdomain.workers.dev npm run deploy
+npm run deploy   # add the custom domain llmapicheck.dev in the Worker's Domains & Routes settings
 ```
 
 Or connect the repository in the Cloudflare dashboard (**Workers & Pages → Create → Workers → Import a repository**) with:
@@ -52,7 +52,7 @@ Or connect the repository in the Cloudflare dashboard (**Workers & Pages → Cre
 ### Option B — Cloudflare Pages
 
 ```bash
-VITE_SITE_URL=https://your-project.pages.dev npm run deploy:pages
+npm run deploy:pages
 ```
 
 Or via Git integration: framework preset **None**, build command `npm run build`, build output directory `dist`, environment variable `VITE_SITE_URL`. `_headers` and `404.html` are picked up automatically.

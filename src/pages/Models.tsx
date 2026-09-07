@@ -71,8 +71,8 @@ function ImportExport() {
   const [msg, setMsg] = React.useState<string | null>(null);
   const exportJson = (withKeys: boolean) => {
     if (withKeys && !confirm(t.models.exportWithKeysWarn)) return;
-    const payload = { app: "which-llm-i-can-use", version: 1, exportedAt: new Date().toISOString(), providers, models, ...(withKeys ? { secrets: keys } : {}) };
-    downloadText(`whichllm-models-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(payload, null, 2));
+    const payload = { app: "llmapicheck", version: 1, exportedAt: new Date().toISOString(), providers, models, ...(withKeys ? { secrets: keys } : {}) };
+    downloadText(`llmapicheck-models-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(payload, null, 2));
   };
   const onFile = async (f: File) => {
     try {
