@@ -1,46 +1,48 @@
 import type { Msg } from "@/lib/caps/types";
 import type { ModelSnapshot } from "@/lib/store/types";
 
-export type RunMode = "stream" | "non_stream" | "cache_cold" | "cache_warm";
+export type RunMode = "stream" | "non_stream";
+/** miss = every request starts with fresh random content; hit = identical prompt after a warm-up request. */
+export type CacheCondition = "miss" | "hit";
+export type CacheMode = "miss" | "hit" | "compare";
 export type PromptSize = "short" | "medium" | "long";
 export type PromptLang = "en" | "zh";
 
 export interface PerfConfig {
+  /** Measured runs per (mode × cache condition). */
   runs: number;
-  modes: { stream: boolean; nonStream: boolean; cache: boolean };
+  modes: { stream: boolean; nonStream: boolean };
+  cacheMode: CacheMode;
   promptSize: PromptSize;
   promptLang: PromptLang;
   maxTokens: number;
-  warmup: boolean;
   /** Pause between consecutive requests (ms). */
   intervalMs: number;
-  /** Pause between the cold and the first warm cache request (ms). */
+  /** Pause after the warm-up request so the provider can build the cache (ms). */
   cacheWarmDelayMs: number;
-  /** Number of warm (repeat) cache requests. */
-  cacheRepeats: number;
-  /** Approximate size of the shared cache prefix in tokens. */
-  cachePrefixTokens: number;
 }
+
+export const PERF_CONFIG_VERSION = 2;
 
 export const DEFAULT_PERF_CONFIG: PerfConfig = {
   runs: 3,
-  modes: { stream: true, nonStream: true, cache: true },
+  modes: { stream: true, nonStream: true },
+  cacheMode: "miss",
   promptSize: "short",
   promptLang: "en",
   maxTokens: 256,
-  warmup: true,
   intervalMs: 500,
   cacheWarmDelayMs: 3000,
-  cacheRepeats: 2,
-  cachePrefixTokens: 2500,
 };
 
 export interface RunSample {
   id: string;
   modelId: string;
   mode: RunMode;
+  cache: CacheCondition;
   index: number;
   startedAt: number;
+  /** Warm-up requests populate the cache and are excluded from statistics. */
   warmup?: boolean;
   ok: boolean;
   error?: { kind: string; message: string; status?: number | null };
@@ -87,21 +89,31 @@ export interface ModeStats {
   e2eTps: Stats | null;
   completionTokens: Stats | null;
   reasoningTokens: Stats | null;
+  promptTokens: number | null;
+  /** Median cached prompt tokens reported by the provider (null when never reported). */
+  cachedTokens: number | null;
+  cachedSource: string | null;
   estimated: boolean;
   /** Median gap between the first reasoning token and the first content token (ms). */
   reasoningDelayMs: number | null;
 }
 
-export interface CacheStats {
-  cold: ModeStats;
-  warm: ModeStats;
+/** Statistics for one cache condition. */
+export interface ConditionStats {
+  stream: ModeStats | null;
+  nonStream: ModeStats | null;
+}
+
+/** Miss-vs-hit comparison, available in "compare" mode. */
+export interface CacheComparison {
   promptTokens: number | null;
-  cachedTokensWarm: number | null;
-  cachedTokensCold: number | null;
+  cachedTokens: number | null;
   cachedSource: string | null;
   hitRatio: number | null;
   reported: boolean;
+  /** 1 − hit/miss of the median streaming TTFT (positive = faster when cached). */
   ttftImprovement: number | null;
+  /** Same for the median non-streaming latency (falls back to streaming total). */
   totalImprovement: number | null;
 }
 
@@ -118,15 +130,18 @@ export interface ScenarioScore {
 export interface PerfModelResult {
   modelId: string;
   samples: RunSample[];
-  stream: ModeStats | null;
-  nonStream: ModeStats | null;
-  cache: CacheStats | null;
+  miss: ConditionStats | null;
+  hit: ConditionStats | null;
+  comparison: CacheComparison | null;
+  /** Which condition the scenario scores were derived from. */
+  scoredFrom: CacheCondition | null;
   scores: ScenarioScore[];
 }
 
 export interface PerfSession {
   id: string;
   kind: "performance";
+  version: number;
   createdAt: number;
   finishedAt: number | null;
   status: "running" | "done" | "aborted" | "error";

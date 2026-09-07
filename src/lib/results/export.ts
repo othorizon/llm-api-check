@@ -12,11 +12,11 @@ function csvCell(v: unknown): string {
 }
 
 export function perfToCsv(s: PerfSession): string {
-  const header = ["model", "provider", "mode", "index", "warmup", "ok", "error", "ttft_ms", "ttf_content_ms", "total_ms", "prompt_tokens", "completion_tokens", "reasoning_tokens", "cached_tokens", "tokens_estimated", "decode_tps", "e2e_tps", "chunks", "finish_reason", "started_at"];
+  const header = ["model", "provider", "mode", "cache", "index", "warmup", "ok", "error", "ttft_ms", "ttf_content_ms", "total_ms", "prompt_tokens", "completion_tokens", "reasoning_tokens", "cached_tokens", "tokens_estimated", "decode_tps", "e2e_tps", "chunks", "finish_reason", "started_at"];
   const rows = [header.join(",")];
   for (const snap of s.models) {
     for (const r of s.results[snap.id]?.samples ?? []) {
-      rows.push([snap.label, snap.providerName, r.mode, r.index, r.warmup ? 1 : 0, r.ok ? 1 : 0, r.error?.message ?? "", r.ttftMs?.toFixed(1) ?? "", r.ttfcMs?.toFixed(1) ?? "", r.totalMs.toFixed(1), r.promptTokens ?? "", r.completionTokens ?? "", r.reasoningTokens ?? "", r.cachedTokens ?? "", r.tokensEstimated ? 1 : 0, r.decodeTps?.toFixed(2) ?? "", r.e2eTps?.toFixed(2) ?? "", r.chunkCount, r.finishReason ?? "", new Date(r.startedAt).toISOString()].map(csvCell).join(","));
+      rows.push([snap.label, snap.providerName, r.mode, r.cache, r.index, r.warmup ? 1 : 0, r.ok ? 1 : 0, r.error?.message ?? "", r.ttftMs?.toFixed(1) ?? "", r.ttfcMs?.toFixed(1) ?? "", r.totalMs.toFixed(1), r.promptTokens ?? "", r.completionTokens ?? "", r.reasoningTokens ?? "", r.cachedTokens ?? "", r.tokensEstimated ? 1 : 0, r.decodeTps?.toFixed(2) ?? "", r.e2eTps?.toFixed(2) ?? "", r.chunkCount, r.finishReason ?? "", new Date(r.startedAt).toISOString()].map(csvCell).join(","));
     }
   }
   return rows.join("\n");
@@ -48,19 +48,26 @@ export function perfToMarkdown(s: PerfSession, dict: Dict): string {
   const lines: string[] = [];
   lines.push(`# ${dict.results.reportTitle} · ${dict.perf.title}`);
   lines.push("");
-  lines.push(`${new Date(s.createdAt).toISOString()} · ${dict.perf.promptSizes[s.config.promptSize]} · ${dict.perf.promptLangs[s.config.promptLang]} · ${s.config.runs} ${dict.common.runs} · max ${s.config.maxTokens} tokens`);
+  lines.push(`${new Date(s.createdAt).toISOString()} · ${dict.perf.cacheModes[s.config.cacheMode].name} · ${dict.perf.promptSizes[s.config.promptSize]} · ${dict.perf.promptLangs[s.config.promptLang]} · ${s.config.runs} ${dict.common.runs} · max ${s.config.maxTokens} tokens`);
   lines.push("");
-  const cols = [dict.common.model, `${m.ttfc} p50`, `${m.ttfc} p95`, `${m.ttft} p50`, `${m.decodeTps} p50`, `${m.latency} (${m.nonStreaming}) p50`, `${m.e2eTps} p50`, m.hitRatio, m.improvement, m.success];
+  const conditions: ("miss" | "hit")[] = s.config.cacheMode === "compare" ? ["miss", "hit"] : [s.config.cacheMode];
+  const cols = [dict.common.model, dict.perf.cacheMode, `${m.ttfc} p50`, `${m.ttfc} p95`, `${m.ttft} p50`, `${m.decodeTps} p50`, `${m.latency} (${m.nonStreaming}) p50`, `${m.e2eTps} p50`, m.cachedTokens, m.success];
   lines.push(`| ${cols.join(" | ")} |`);
   lines.push(`| ${cols.map(() => "---").join(" | ")} |`);
   for (const snap of s.models) {
     const r = s.results[snap.id];
-    const all = (r?.samples ?? []).filter((x) => !x.warmup);
-    const succ = all.length ? all.filter((x) => x.ok).length / all.length : null;
-    const c = r?.cache;
-    lines.push(
-      `| ${mdEscape(snap.label)} (${mdEscape(snap.providerName)}) | ${fmtMs(r?.stream?.ttfc?.p50)} | ${fmtMs(r?.stream?.ttfc?.p95)} | ${fmtMs(r?.stream?.ttft?.p50)} | ${r?.stream?.estimated ? "≈" : ""}${fmtNum(r?.stream?.decodeTps?.p50, 1)} | ${fmtMs(r?.nonStream?.total?.p50)} | ${fmtNum(r?.nonStream?.e2eTps?.p50, 1)} | ${c?.reported ? fmtPct(c.hitRatio) : "—"} | ${c?.ttftImprovement != null ? fmtPct(c.ttftImprovement) : "—"} | ${fmtPct(succ)} |`,
-    );
+    for (const cond of conditions) {
+      const cs = cond === "miss" ? r?.miss : r?.hit;
+      const all = (r?.samples ?? []).filter((x) => x.cache === cond && !x.warmup);
+      const succ = all.length ? all.filter((x) => x.ok).length / all.length : null;
+      const primary = cs?.stream ?? cs?.nonStream;
+      const cached = primary?.cachedTokens != null ? (primary.promptTokens ? fmtPct(Math.min(1, primary.cachedTokens / primary.promptTokens)) : String(primary.cachedTokens)) : "—";
+      lines.push(
+        `| ${mdEscape(snap.label)} (${mdEscape(snap.providerName)}) | ${dict.perf.conditionShort[cond]} | ${fmtMs(cs?.stream?.ttfc?.p50)} | ${fmtMs(cs?.stream?.ttfc?.p95)} | ${fmtMs(cs?.stream?.ttft?.p50)} | ${cs?.stream?.estimated ? "≈" : ""}${fmtNum(cs?.stream?.decodeTps?.p50, 1)} | ${fmtMs(cs?.nonStream?.total?.p50)} | ${fmtNum(cs?.nonStream?.e2eTps?.p50, 1)} | ${cached} | ${fmtPct(succ)} |`,
+      );
+    }
+    const c = r?.comparison;
+    if (c) lines.push(`| | ${dict.perf.compare.title} | ${c.ttftImprovement != null ? `TTFT ${fmtPct(c.ttftImprovement)}` : "—"} | | | | ${c.totalImprovement != null ? `${m.total} ${fmtPct(c.totalImprovement)}` : "—"} | | ${c.reported ? fmtPct(c.hitRatio) : "—"} | |`);
   }
   lines.push("");
   lines.push(`## ${dict.perf.scenarioTitle}`);

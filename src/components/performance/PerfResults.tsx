@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useMsg, useT } from "@/i18n";
 import { interpolate } from "@/i18n/core";
-import type { ModeStats, PerfModelResult, PerfSession, RunSample, ScenarioId, Stats } from "@/lib/perf/types";
+import type { CacheCondition, ModeStats, PerfModelResult, PerfSession, RunSample, ScenarioId, Stats } from "@/lib/perf/types";
 import { SCENARIOS } from "@/lib/perf/scoring";
 import { fmtInt, fmtMs, fmtNum, fmtPct } from "@/lib/utils/format";
 import { Card, CardBody, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -19,8 +19,12 @@ function Th({ children, className, title }: { children: React.ReactNode; classNa
     </th>
   );
 }
-function Td({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <td className={cn("tnum whitespace-nowrap px-3 py-2 align-middle text-sm", className)}>{children}</td>;
+function Td({ children, className, rowSpan }: { children: React.ReactNode; className?: string; rowSpan?: number }) {
+  return (
+    <td className={cn("tnum whitespace-nowrap px-3 py-2 align-middle text-sm", className)} rowSpan={rowSpan}>
+      {children}
+    </td>
+  );
 }
 
 function StatCell({ s, kind, estimated }: { s: Stats | null | undefined; kind: "ms" | "tps"; estimated?: boolean }) {
@@ -42,18 +46,44 @@ function StatCell({ s, kind, estimated }: { s: Stats | null | undefined; kind: "
   );
 }
 
+/** Conditions present in a session, in display order. */
+export function sessionConditions(session: PerfSession): CacheCondition[] {
+  const m = session.config.cacheMode;
+  return m === "compare" ? ["miss", "hit"] : [m];
+}
+
+export function ConditionBadge({ condition }: { condition: CacheCondition }) {
+  const t = useT();
+  return <Badge tone={condition === "hit" ? "accent" : "neutral"}>{t.perf.conditionShort[condition]}</Badge>;
+}
+
+function CachedCell({ stats, condition }: { stats: ModeStats | null | undefined; condition: CacheCondition }) {
+  const t = useT();
+  if (!stats || stats.ok === 0) return <span className="text-muted">—</span>;
+  if (stats.cachedTokens == null) return <span className="text-muted" title={t.perf.cacheVerdict.unreported}>—</span>;
+  const ratio = stats.promptTokens ? Math.min(1, stats.cachedTokens / stats.promptTokens) : null;
+  const tone = stats.cachedTokens > 0 ? (condition === "hit" ? "text-good-ink" : "text-warning-ink") : "text-muted";
+  return (
+    <span className={cn("font-medium", tone)} title={`${fmtInt(stats.cachedTokens)} / ${fmtInt(stats.promptTokens)} ${t.common.tokens}${stats.cachedSource ? ` · ${stats.cachedSource}` : ""}`}>
+      {ratio == null ? fmtInt(stats.cachedTokens) : fmtPct(ratio)}
+    </span>
+  );
+}
+
 export function PerfSummaryTable({ session }: { session: PerfSession }) {
   const t = useT();
   const m = t.perf.metrics;
   const anyStream = session.config.modes.stream;
   const anyNon = session.config.modes.nonStream;
-  const anyCache = session.config.modes.cache;
+  const conditions = sessionConditions(session);
+  const multi = conditions.length > 1;
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[720px] border-collapse">
+      <table className="w-full min-w-[760px] border-collapse">
         <thead>
           <tr className="border-b border-border">
             <Th>{t.common.model}</Th>
+            {multi ? <Th>{t.perf.cacheMode}</Th> : null}
             {anyStream ? (
               <>
                 <Th title={m.ttfcLong}>{m.ttfc}</Th>
@@ -67,7 +97,7 @@ export function PerfSummaryTable({ session }: { session: PerfSession }) {
                 <Th title={m.e2eTpsLong}>{m.e2eTps}</Th>
               </>
             ) : null}
-            {anyCache ? <Th>{m.cache}</Th> : null}
+            <Th title={m.cachedTokensLong}>{m.cachedTokens}</Th>
             <Th>{m.success}</Th>
             <Th>{t.perf.scenarios.voice.name}</Th>
           </tr>
@@ -75,52 +105,64 @@ export function PerfSummaryTable({ session }: { session: PerfSession }) {
         <tbody>
           {session.models.map((snap, i) => {
             const r = session.results[snap.id];
-            const okAll = r ? r.samples.filter((s) => !s.warmup) : [];
-            const success = okAll.length ? okAll.filter((s) => s.ok).length / okAll.length : null;
-            const voice = r?.scores.find((s) => s.id === "voice");
-            return (
-              <tr key={snap.id} className="border-b border-border last:border-0">
-                <Td>
-                  <div className="flex items-center gap-2">
-                    <SeriesDot index={i} />
-                    <div>
-                      <div className="font-medium">{snap.label}</div>
-                      <div className="text-xs text-muted">{snap.providerName}</div>
-                    </div>
-                  </div>
-                </Td>
-                {anyStream ? (
-                  <>
-                    <Td>
-                      <StatCell s={r?.stream?.ttfc} kind="ms" />
+            return conditions.map((cond, ci) => {
+              const cs = cond === "miss" ? r?.miss : r?.hit;
+              const measured = (r?.samples ?? []).filter((s) => s.cache === cond && !s.warmup);
+              const success = measured.length ? measured.filter((s) => s.ok).length / measured.length : null;
+              const primary = cs?.stream ?? cs?.nonStream ?? null;
+              return (
+                <tr key={`${snap.id}-${cond}`} className={cn("border-b border-border last:border-0", ci > 0 && "border-t-0")}>
+                  {ci === 0 ? (
+                    <Td rowSpan={conditions.length} className="align-top">
+                      <div className="flex items-center gap-2">
+                        <SeriesDot index={i} />
+                        <div>
+                          <div className="font-medium">{snap.label}</div>
+                          <div className="text-xs text-muted">{snap.providerName}</div>
+                        </div>
+                      </div>
                     </Td>
+                  ) : null}
+                  {multi ? (
                     <Td>
-                      <StatCell s={r?.stream?.ttft} kind="ms" />
+                      <ConditionBadge condition={cond} />
                     </Td>
-                    <Td>
-                      <StatCell s={r?.stream?.decodeTps} kind="tps" estimated={r?.stream?.estimated} />
-                    </Td>
-                  </>
-                ) : null}
-                {anyNon ? (
-                  <>
-                    <Td>
-                      <StatCell s={r?.nonStream?.total} kind="ms" />
-                    </Td>
-                    <Td>
-                      <StatCell s={r?.nonStream?.e2eTps} kind="tps" estimated={r?.nonStream?.estimated} />
-                    </Td>
-                  </>
-                ) : null}
-                {anyCache ? (
+                  ) : null}
+                  {anyStream ? (
+                    <>
+                      <Td>
+                        <StatCell s={cs?.stream?.ttfc} kind="ms" />
+                      </Td>
+                      <Td>
+                        <StatCell s={cs?.stream?.ttft} kind="ms" />
+                      </Td>
+                      <Td>
+                        <StatCell s={cs?.stream?.decodeTps} kind="tps" estimated={cs?.stream?.estimated} />
+                      </Td>
+                    </>
+                  ) : null}
+                  {anyNon ? (
+                    <>
+                      <Td>
+                        <StatCell s={cs?.nonStream?.total} kind="ms" />
+                      </Td>
+                      <Td>
+                        <StatCell s={cs?.nonStream?.e2eTps} kind="tps" estimated={cs?.nonStream?.estimated} />
+                      </Td>
+                    </>
+                  ) : null}
                   <Td>
-                    <CacheCell r={r} />
+                    <CachedCell stats={primary} condition={cond} />
                   </Td>
-                ) : null}
-                <Td>{success == null ? <span className="text-muted">—</span> : <span className={success < 1 ? "text-critical-ink" : ""}>{fmtPct(success)}</span>}</Td>
-                <Td>{voice ? <ScoreCell result={r} scenario="voice" /> : "—"}</Td>
-              </tr>
-            );
+                  <Td>{success == null ? <span className="text-muted">—</span> : <span className={success < 1 ? "text-critical-ink" : ""}>{fmtPct(success)}</span>}</Td>
+                  {ci === 0 ? (
+                    <Td rowSpan={conditions.length} className="align-top">
+                      <ScoreCell result={r} scenario="voice" />
+                    </Td>
+                  ) : null}
+                </tr>
+              );
+            });
           })}
         </tbody>
       </table>
@@ -128,20 +170,35 @@ export function PerfSummaryTable({ session }: { session: PerfSession }) {
   );
 }
 
-function CacheCell({ r }: { r: PerfModelResult | undefined }) {
+/** Miss-vs-hit summary lines (compare mode only). */
+export function CacheComparisonList({ session }: { session: PerfSession }) {
   const t = useT();
-  const c = r?.cache;
-  if (!c || c.warm.ok === 0) return <span className="text-muted">—</span>;
-  if (c.reported && c.cachedTokensWarm != null && c.cachedTokensWarm > 0) {
-    return (
-      <span className="inline-flex flex-col leading-tight">
-        <span className="font-medium text-good-ink">{fmtPct(c.hitRatio)}</span>
-        {c.ttftImprovement != null ? <span className="text-xs text-muted">TTFT {c.ttftImprovement >= 0 ? "−" : "+"}{fmtPct(Math.abs(c.ttftImprovement))}</span> : null}
-      </span>
-    );
-  }
-  if (!c.reported && c.ttftImprovement != null && c.ttftImprovement > 0.3) return <span className="text-warning-ink">{interpolate(t.perf.cacheVerdict.fasterOnly, { pct: Math.round(c.ttftImprovement * 100) })}</span>;
-  return <span className="text-muted">{c.reported ? t.perf.cacheVerdict.none : t.perf.cacheVerdict.unreported}</span>;
+  if (session.config.cacheMode !== "compare") return null;
+  const rows = session.models.map((snap, i) => ({ snap, i, c: session.results[snap.id]?.comparison })).filter((x) => x.c);
+  if (!rows.length) return null;
+  const signed = (v: number) => `${v >= 0 ? "−" : "+"}${fmtPct(Math.abs(v))}`;
+  return (
+    <ul className="space-y-1.5 text-sm">
+      {rows.map(({ snap, i, c }) => (
+        <li key={snap.id} className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span className="inline-flex items-center gap-1.5 font-medium">
+            <SeriesDot index={i} /> {snap.label}
+          </span>
+          {c!.ttftImprovement != null ? <span className="text-ink-2">{interpolate(t.perf.compare.ttft, { pct: signed(c!.ttftImprovement) })}</span> : null}
+          {c!.totalImprovement != null ? <span className="text-ink-2">{interpolate(t.perf.compare.total, { pct: signed(c!.totalImprovement) })}</span> : null}
+          <span className={c!.reported && (c!.cachedTokens ?? 0) > 0 ? "text-good-ink" : "text-muted"}>
+            {c!.reported && c!.cachedTokens != null && c!.cachedTokens > 0
+              ? interpolate(t.perf.cacheVerdict.hit, { cached: fmtInt(c!.cachedTokens), prompt: fmtInt(c!.promptTokens), pct: c!.hitRatio == null ? "?" : Math.round(c!.hitRatio * 100) })
+              : c!.reported
+                ? t.perf.cacheVerdict.none
+                : c!.ttftImprovement != null && c!.ttftImprovement > 0.3
+                  ? interpolate(t.perf.cacheVerdict.fasterOnly, { pct: Math.round(c!.ttftImprovement * 100) })
+                  : t.perf.cacheVerdict.unreported}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 function ScoreCell({ result, scenario }: { result: PerfModelResult | undefined; scenario: ScenarioId }) {
@@ -209,16 +266,25 @@ export function ScenarioMatrix({ session }: { session: PerfSession }) {
 
 export function PerfCharts({ session }: { session: PerfSession }) {
   const t = useT();
-  const ttfcRows = session.models.map((snap, i) => {
-    const r = session.results[snap.id];
-    const samples = (r?.samples ?? []).filter((s) => s.mode === "stream" && !s.warmup && s.ok && s.ttfcMs != null);
-    return { label: snap.label, index: i, values: samples.map((s) => ({ v: s.ttfcMs!, title: `${snap.label} · #${s.index + 1}: ${fmtMs(s.ttfcMs)}` })), median: r?.stream?.ttfc?.p50 ?? null };
-  });
-  const tpsRows = session.models.map((snap, i) => {
-    const r = session.results[snap.id];
-    const v = r?.stream?.decodeTps?.p50 ?? r?.nonStream?.e2eTps?.p50 ?? null;
-    return { label: snap.label, index: i, value: v, title: `${snap.label}: ${fmtNum(v, 1)} tok/s` };
-  });
+  const conditions = sessionConditions(session);
+  const multi = conditions.length > 1;
+  const rowLabel = (label: string, cond: CacheCondition) => (multi ? `${label} · ${t.perf.conditionShort[cond]}` : label);
+  const ttfcRows = session.models.flatMap((snap, i) =>
+    conditions.map((cond) => {
+      const r = session.results[snap.id];
+      const cs = cond === "miss" ? r?.miss : r?.hit;
+      const samples = (r?.samples ?? []).filter((s) => s.mode === "stream" && s.cache === cond && !s.warmup && s.ok && s.ttfcMs != null);
+      return { label: rowLabel(snap.label, cond), index: i, values: samples.map((s) => ({ v: s.ttfcMs!, title: `${snap.label} · ${t.perf.conditionShort[cond]} · #${s.index + 1}: ${fmtMs(s.ttfcMs)}` })), median: cs?.stream?.ttfc?.p50 ?? null };
+    }),
+  );
+  const tpsRows = session.models.flatMap((snap, i) =>
+    conditions.map((cond) => {
+      const r = session.results[snap.id];
+      const cs = cond === "miss" ? r?.miss : r?.hit;
+      const v = cs?.stream?.decodeTps?.p50 ?? cs?.nonStream?.e2eTps?.p50 ?? null;
+      return { label: rowLabel(snap.label, cond), index: i, value: v, title: `${snap.label} · ${t.perf.conditionShort[cond]}: ${fmtNum(v, 1)} tok/s` };
+    }),
+  );
   const hasTtfc = ttfcRows.some((r) => r.values.length);
   const hasTps = tpsRows.some((r) => r.value != null);
   if (!hasTtfc && !hasTps) return null;
@@ -257,8 +323,9 @@ export function RunLog({ session }: { session: PerfSession }) {
   const rows: { snapIndex: number; label: string; s: RunSample }[] = [];
   session.models.forEach((snap, i) => (session.results[snap.id]?.samples ?? []).forEach((s) => rows.push({ snapIndex: i, label: snap.label, s })));
   rows.sort((a, b) => a.s.startedAt - b.s.startedAt);
-  const shown = rows.filter((r) => filter === "all" || r.s.mode === filter || (filter === "cache" && r.s.mode.startsWith("cache")));
+  const shown = rows.filter((r) => filter === "all" || r.s.mode === filter || r.s.cache === filter);
   const c = t.perf.columns;
+  const multi = session.config.cacheMode === "compare";
   return (
     <Card>
       <CardHeader>
@@ -273,17 +340,18 @@ export function RunLog({ session }: { session: PerfSession }) {
             { value: "all", label: t.common.all },
             ...(session.config.modes.stream ? [{ value: "stream", label: t.perf.modeLabels.stream }] : []),
             ...(session.config.modes.nonStream ? [{ value: "non_stream", label: t.perf.modeLabels.non_stream }] : []),
-            ...(session.config.modes.cache ? [{ value: "cache", label: t.perf.metrics.cache }] : []),
+            ...(multi ? [{ value: "miss", label: t.perf.conditionShort.miss }, { value: "hit", label: t.perf.conditionShort.hit }] : []),
           ]}
         />
       </CardHeader>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[860px] border-collapse">
+        <table className="w-full min-w-[900px] border-collapse">
           <thead>
             <tr className="border-b border-border">
               <Th>{c.run}</Th>
               <Th>{t.common.model}</Th>
               <Th>{c.mode}</Th>
+              <Th>{c.cache}</Th>
               <Th>{c.ttft}</Th>
               <Th>{c.ttfc}</Th>
               <Th>{c.total}</Th>
@@ -298,7 +366,7 @@ export function RunLog({ session }: { session: PerfSession }) {
           <tbody>
             {shown.map(({ snapIndex, label, s }) => (
               <tr key={s.id} className={cn("border-b border-border last:border-0", s.warmup && "opacity-60")}>
-                <Td className="text-muted">{s.warmup ? "warm-up" : s.index + 1}</Td>
+                <Td className="text-muted">{s.warmup ? t.perf.warmupRow : s.index + 1}</Td>
                 <Td>
                   <span className="inline-flex items-center gap-1.5">
                     <SeriesDot index={snapIndex} />
@@ -307,6 +375,9 @@ export function RunLog({ session }: { session: PerfSession }) {
                 </Td>
                 <Td>
                   <Badge>{t.perf.modeLabels[s.mode]}</Badge>
+                </Td>
+                <Td>
+                  <ConditionBadge condition={s.cache} />
                 </Td>
                 <Td>{fmtMs(s.ttftMs)}</Td>
                 <Td>{fmtMs(s.ttfcMs)}</Td>
@@ -342,11 +413,7 @@ export function RunLog({ session }: { session: PerfSession }) {
 
 export function EstimatedNote({ session }: { session: PerfSession }) {
   const t = useT();
-  const est = Object.values(session.results).some((r) => r.stream?.estimated || r.nonStream?.estimated);
+  const est = Object.values(session.results).some((r) => [r.miss, r.hit].some((c) => c?.stream?.estimated || c?.nonStream?.estimated));
   if (!est) return null;
   return <p className="text-xs text-muted">{t.perf.metrics.estimatedNote}</p>;
-}
-
-export function modeStatsOk(s: ModeStats | null | undefined) {
-  return !!s && s.ok > 0;
 }

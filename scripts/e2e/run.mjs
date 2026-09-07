@@ -66,12 +66,13 @@ log("models added");
 // 3. Performance test
 await page.goto(`${BASE}/en/performance`);
 await page.waitForSelector("text=Start performance test");
-await page.getByLabel("Runs per mode").fill("2");
+await page.getByLabel("Runs", { exact: true }).fill("2");
 await page.getByLabel("Max output tokens").fill("48");
+await page.getByText("Compare both").click();
+await page.getByLabel("Input size").selectOption("long");
 await page.getByText("Advanced").click();
 await page.getByLabel("Pause between requests (ms)").fill("50");
-await page.getByLabel("Cold → warm delay (ms)").fill("300");
-await page.getByLabel("Cache prefix size (tokens)").fill("800");
+await page.getByLabel("Wait after warm-up (ms)").fill("300");
 await page.getByRole("button", { name: /Start performance test/ }).click();
 await page.waitForSelector("text=Running…");
 await page.waitForTimeout(1500);

@@ -42,22 +42,42 @@ export function MethodologyContent({ locale }: { locale: Locale }) {
         <p>
           token 数优先取自响应中的 <code>usage</code>（流式请求会发送 <code>stream_options: {"{ include_usage: true }"}</code>；若接口拒绝该参数会自动去掉重试）。没有 usage 时按字符估算（CJK 约 1 字 1 token，拉丁文约 4 字符 1 token），并在界面中以 <strong>≈</strong> 标注。推理模型的 <code>completion_tokens</code> 通常包含推理 token，因此吞吐按全部生成 token 计算。
         </p>
-        <h2 id="random">提示词随机化</h2>
-        <p>服务商的前缀缓存会让重复请求的 TTFT 骤降，从而虚增成绩。为此，每次性能请求都：</p>
-        <ul>
-          <li>在 system 消息的<strong>最开头</strong>放置一个随机 nonce（前缀缓存按前缀匹配，开头不同即无法命中）；</li>
-          <li>从题库中随机选择写作主题；</li>
-          <li>“中”“长”输入档位会用随机种子生成可读的填充文本（含随机数字），使输入 token 数稳定但内容不同。</li>
-        </ul>
-        <p>运行顺序为<strong>跨模型轮转</strong>（A、B、C、A、B、C…），以减少时段性波动对某一个模型的偏向。可选的预热请求不计入统计。</p>
-        <h2 id="cache">提示词缓存测试</h2>
+        <h2 id="cache">提示词缓存：不命中 / 命中 / 对比</h2>
+        <p>服务商的前缀缓存会让重复请求的 TTFT 骤降，同一份提示词跑出来的数字和真实的首次请求相差很大。因此性能测试提供三种缓存条件：</p>
+        <table>
+          <thead>
+            <tr>
+              <th>条件</th>
+              <th>提示词</th>
+              <th>预热</th>
+              <th>适用</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>不命中缓存</strong>（默认）</td>
+              <td>每次请求的 system 消息<strong>最开头</strong>都带当前时间戳与随机串（前缀缓存按前缀匹配，开头不同即无法命中）；写作主题和填充文本也随机。</td>
+              <td>无</td>
+              <td>用户每次都发新内容的场景，例如聊天首轮、批处理。</td>
+            </tr>
+            <tr>
+              <td><strong>命中缓存</strong></td>
+              <td>本次会话内为每个模型固定一份提示词（含一个会话级随机串，保证与以往请求不同），所有请求逐字节相同。</td>
+              <td>先发一次不计入统计的预热请求，等待“预热后等待”毫秒数让服务商建立缓存，再开始计入统计的运行。</td>
+              <td>长 system 提示词、RAG 上下文、Agent 多轮循环等复用前缀的场景。</td>
+            </tr>
+            <tr>
+              <td><strong>两者对比</strong></td>
+              <td>先按“不命中”跑一组，再按“命中”跑一组。</td>
+              <td>命中组前预热一次。</td>
+              <td>想知道缓存到底能带来多少延迟收益。</td>
+            </tr>
+          </tbody>
+        </table>
         <p>
-          缓存模式刻意<strong>复用</strong>同一段约 2,500 token 的 system 前缀（本次会话内固定，但以 nonce 开头，确保第一次一定未命中），先发一次“冷”请求，等待若干秒（部分服务商需要几秒构建缓存），再用不同的短问题发送“热”请求。判定依据：
+          命中与否以服务商在 usage 中返回的缓存字段为准：<code>prompt_tokens_details.cached_tokens</code>（OpenAI、通义千问、火山方舟、Kimi 等）、<code>prompt_cache_hit_tokens</code>（DeepSeek）、<code>cache_read_input_tokens</code>（Anthropic 风格网关）。表格中的“缓存命中”列显示命中 token 占输入 token 的比例；不命中组若出现命中会以警示色标出。多数服务商只缓存达到一定长度的前缀（OpenAI ≥ 1,024 tokens），所以测命中时请选择“长”输入长度。
         </p>
-        <ul>
-          <li>usage 中的缓存字段：<code>prompt_tokens_details.cached_tokens</code>（OpenAI、通义千问、火山方舟、Kimi 等）、<code>prompt_cache_hit_tokens</code>（DeepSeek）、<code>cache_read_input_tokens</code>（Anthropic 风格网关）；</li>
-          <li>冷 / 热请求的 TTFT 与总耗时差异——没有缓存字段但明显更快时标注为“未报告但更快”。</li>
-        </ul>
+        <p>运行顺序为<strong>跨模型轮转</strong>（A、B、C、A、B、C…），以减少时段性波动对某一个模型的偏向。场景评分默认基于不命中组；只跑命中组时会在评分依据中注明。</p>
         <h2 id="scores">场景评分</h2>
         <p>评分是把测得的中位数映射到 0–100 的分段线性函数，再叠加尾延迟、吞吐与失败的惩罚。等级：A ≥ 85，B ≥ 70，C ≥ 55，D ≥ 40，其余 F。评分只是把数字翻译成可读的结论，具体阈值如下：</p>
         <table>
@@ -148,22 +168,42 @@ export function MethodologyContent({ locale }: { locale: Locale }) {
       <p>
         Token counts come from the response <code>usage</code> when available (streaming requests send <code>stream_options: {"{ include_usage: true }"}</code> and retry without it if rejected). When usage is missing, tokens are estimated from characters (≈1 token per CJK character, ≈4 Latin characters per token) and flagged with <strong>≈</strong> in the UI. For reasoning models <code>completion_tokens</code> usually includes reasoning tokens, so throughput counts every generated token.
       </p>
-      <h2 id="random">Prompt randomisation</h2>
-      <p>Provider-side prefix caching makes repeated requests dramatically faster and would inflate results. Every performance request therefore:</p>
-      <ul>
-        <li>starts the system message with a random nonce (prefix caches match from the beginning, so a different start cannot hit);</li>
-        <li>picks a random writing topic from a pool;</li>
-        <li>for the medium and long input sizes, generates readable filler text (with random numbers) from a random seed, keeping the token count stable while the content changes.</li>
-      </ul>
-      <p>Requests are scheduled <strong>round-robin across models</strong> (A, B, C, A, B, C…) so that time-of-day variance does not favour one model. The optional warm-up request is excluded from statistics.</p>
-      <h2 id="cache">Prompt cache test</h2>
+      <h2 id="cache">Prompt cache: miss, hit, or compare</h2>
+      <p>Provider-side prefix caching makes repeated requests dramatically faster, so a benchmark that reuses one prompt looks nothing like a real first request. The performance test therefore offers three cache conditions:</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Condition</th>
+            <th>Prompt</th>
+            <th>Warm-up</th>
+            <th>Use it for</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Cache miss</strong> (default)</td>
+            <td>Every request starts its system message with the current timestamp and a random token (prefix caches match from the beginning, so a different start cannot hit); the topic and filler text are random too.</td>
+            <td>None</td>
+            <td>Workloads where every request is new: first chat turns, batch jobs.</td>
+          </tr>
+          <tr>
+            <td><strong>Cache hit</strong></td>
+            <td>One prompt per model is fixed for the session (with a session-level random token so it differs from earlier sessions); every request is byte-identical.</td>
+            <td>One unmeasured warm-up request, then a pause (“wait after warm-up”) so the provider can build the cache, then the measured runs.</td>
+            <td>Long system prompts, RAG contexts, agent loops — anything that reuses a prefix.</td>
+          </tr>
+          <tr>
+            <td><strong>Compare both</strong></td>
+            <td>Runs the cache-miss block, then the cache-hit block.</td>
+            <td>Once, before the hit block.</td>
+            <td>Quantifying how much latency the cache actually saves.</td>
+          </tr>
+        </tbody>
+      </table>
       <p>
-        The cache mode deliberately <strong>reuses</strong> one ~2,500-token system prefix (fixed for the session, but starting with a nonce so the first request is guaranteed to miss). A cold request is sent, the runner waits a few seconds (some providers need time to build the cache), then warm requests follow with different short questions. Evidence:
+        Whether a request hit is read from the provider's usage fields: <code>prompt_tokens_details.cached_tokens</code> (OpenAI, Qwen, Ark, Kimi…), <code>prompt_cache_hit_tokens</code> (DeepSeek), <code>cache_read_input_tokens</code> (Anthropic-style gateways). The “Cached” column shows cached tokens as a share of prompt tokens; a hit inside the miss block is flagged in a warning colour. Most providers only cache prefixes above a minimum length (OpenAI ≥ 1,024 tokens), so pick the long input size when measuring hits.
       </p>
-      <ul>
-        <li>cache fields in usage: <code>prompt_tokens_details.cached_tokens</code> (OpenAI, Qwen, Ark, Kimi…), <code>prompt_cache_hit_tokens</code> (DeepSeek), <code>cache_read_input_tokens</code> (Anthropic-style gateways);</li>
-        <li>the TTFT and total-time difference between cold and warm — a clear speed-up without any cache field is reported as “not reported but faster”.</li>
-      </ul>
+      <p>Requests are scheduled <strong>round-robin across models</strong> (A, B, C, A, B, C…) so that time-of-day variance does not favour one model. Scenario scores use the cache-miss runs; when only the hit block was run, the score notes say so.</p>
       <h2 id="scores">Scenario scores</h2>
       <p>A score maps the measured medians through a piecewise-linear curve to 0–100 and subtracts penalties for tail latency, low throughput and failures. Grades: A ≥ 85, B ≥ 70, C ≥ 55, D ≥ 40, otherwise F. Scores only translate numbers into a readable verdict; the thresholds are:</p>
       <table>

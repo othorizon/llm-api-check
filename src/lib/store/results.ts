@@ -30,6 +30,17 @@ export const useResults = create<ResultsState>()(
       remove: (id) => set((st) => ({ sessions: st.sessions.filter((x) => x.id !== id) })),
       clear: () => set({ sessions: [] }),
     }),
-    { name: STORAGE_KEYS.results, storage: createJSONStorage(() => safeStorage("local")), skipHydration: true, version: 1 },
+    {
+      name: STORAGE_KEYS.results,
+      storage: createJSONStorage(() => safeStorage("local")),
+      skipHydration: true,
+      version: 2,
+      // v2 changed the performance result shape (cache miss/hit conditions); older performance sessions are dropped.
+      migrate: (persisted, version) => {
+        const st = (persisted ?? {}) as { sessions?: Session[] };
+        if (version < 2) return { sessions: (st.sessions ?? []).filter((s) => s.kind !== "performance") };
+        return st as { sessions: Session[] };
+      },
+    },
   ),
 );

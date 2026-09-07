@@ -110,24 +110,34 @@ export interface PerfPrompt {
   approxInputTokens: number;
 }
 
+export interface PerfPromptOptions {
+  /**
+   * true  → the prompt starts with the current timestamp plus a random token, so no
+   *         prefix cache can match (cache-miss measurements);
+   * false → the prompt still carries a session token (fresh for this test session)
+   *         but no per-request randomness, so repeated requests are byte-identical
+   *         and can hit the provider's prompt cache.
+   */
+  randomizeEveryRequest: boolean;
+}
+
 /**
- * Builds a randomised prompt for a single performance run.
- * A unique nonce at the very start of the system message defeats prefix
- * caching; the topic and any filler text are randomised as well.
+ * Builds a prompt for a performance run. The random part sits at the very
+ * start of the system message because prefix caches match from the beginning.
  */
-export function buildPerfPrompt(rng: () => number, lang: PromptLang, size: PromptSize, targetWords: number): PerfPrompt {
+export function buildPerfPrompt(rng: () => number, lang: PromptLang, size: PromptSize, targetWords: number, opts: PerfPromptOptions = { randomizeEveryRequest: true }): PerfPrompt {
   const n = nonce(rng);
+  const stamp = opts.randomizeEveryRequest ? `${new Date().toISOString()} ${n}` : n;
   const topics = lang === "zh" ? TOPICS_ZH : TOPICS_EN;
   const topic = topics[Math.floor(rng() * topics.length)];
   const ctx = SIZE_TOKENS[size] > 0 ? filler(rng, lang, SIZE_TOKENS[size]) : "";
+  // Filler context lives in the system message: that is the part real applications
+  // share between requests, and therefore the part prompt caches are built on.
   const system =
     lang === "zh"
-      ? `会话 ${n}。你是一位写作助手，用自然流畅的中文写作，直接输出正文，不要使用列表、标题或 Markdown。`
-      : `Session ${n}. You are a writing assistant. Write natural, flowing prose. Output only the text, without lists, headings or Markdown.`;
-  const user =
-    lang === "zh"
-      ? `${ctx ? `参考资料（编号 ${n}）：\n\n${ctx}\n\n` : ""}请写一篇约 ${targetWords} 字的短文，主题：${topic}。`
-      : `${ctx ? `Reference notes (ref ${n}):\n\n${ctx}\n\n` : ""}Write a short essay of about ${targetWords} words on ${topic}.`;
+      ? `会话 ${stamp}。你是一位写作助手，用自然流畅的中文写作，直接输出正文，不要使用列表、标题或 Markdown。${ctx ? `\n\n参考资料（编号 ${n}）：\n\n${ctx}` : ""}`
+      : `Session ${stamp}. You are a writing assistant. Write natural, flowing prose. Output only the text, without lists, headings or Markdown.${ctx ? `\n\nReference notes (ref ${n}):\n\n${ctx}` : ""}`;
+  const user = lang === "zh" ? `请写一篇约 ${targetWords} 字的短文，主题：${topic}。` : `Write a short essay of about ${targetWords} words on ${topic}.`;
   const messages: ChatMessage[] = [
     { role: "system", content: system },
     { role: "user", content: user },

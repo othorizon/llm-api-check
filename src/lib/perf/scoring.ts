@@ -1,6 +1,6 @@
 import { msg, type Msg } from "@/lib/caps/types";
 import { interp } from "./stats";
-import type { CacheStats, Grade, ModeStats, ScenarioId, ScenarioScore } from "./types";
+import type { CacheCondition, Grade, ModeStats, ScenarioId, ScenarioScore } from "./types";
 
 export const SCENARIOS: ScenarioId[] = ["voice", "chat", "agent", "batch"];
 
@@ -150,6 +150,8 @@ function scoreBatch(stream: ModeStats | null, nonStream: ModeStats | null): Scen
   return { id: "batch", score: s, grade: gradeOf(s), reasons };
 }
 
-export function computeScores(stream: ModeStats | null, nonStream: ModeStats | null, _cache: CacheStats | null): ScenarioScore[] {
-  return [scoreVoice(stream), scoreChat(stream), scoreAgent(stream, nonStream), scoreBatch(stream, nonStream)];
+export function computeScores(stream: ModeStats | null, nonStream: ModeStats | null, scoredFrom: CacheCondition | null): ScenarioScore[] {
+  const scores = [scoreVoice(stream), scoreChat(stream), scoreAgent(stream, nonStream), scoreBatch(stream, nonStream)];
+  if (scoredFrom === "hit") for (const s of scores) if (s.score != null) s.reasons.push(msg("score.from_hit"));
+  return scores;
 }

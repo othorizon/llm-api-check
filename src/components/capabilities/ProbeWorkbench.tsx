@@ -86,8 +86,8 @@ export function ProbeWorkbench({ kind, suites, defaults, startLabel, storageKey 
   const count = probeCount(effectiveSuites);
   const anySuite = suites.some((s) => effectiveSuites[s]);
 
-  const onStart = async () => {
-    const id = await start({ ...config, suites: effectiveSuites }, selected, kind);
+  const onStart = () => {
+    const id = start({ ...config, suites: effectiveSuites }, selected, kind);
     if (id) {
       setSessionId(id);
       setParams({ session: id }, { replace: true });

@@ -2,7 +2,7 @@ import { create } from "zustand";
 import type { BoundModel } from "@/lib/llm/model-client";
 import { runPerformance, type LiveState, type PerfProgress } from "@/lib/perf/runner";
 import { aggregate } from "@/lib/perf/runner";
-import type { PerfConfig, PerfSession, RunSample } from "@/lib/perf/types";
+import { PERF_CONFIG_VERSION, type PerfConfig, type PerfSession, type RunSample } from "@/lib/perf/types";
 import { runCapabilities, type CapProgress } from "@/lib/caps/runner";
 import type { CapConfig, CapOutcome, CapSession, ProbeKind } from "@/lib/caps/types";
 import { uid } from "@/lib/utils/id";
@@ -22,8 +22,9 @@ interface RunState {
   perfProgress: PerfProgress | null;
   perfLive: LiveState | null;
   capProgress: Record<string, CapProgress>;
-  startPerformance: (config: PerfConfig, modelIds: string[]) => Promise<string | null>;
-  startCapabilities: (config: CapConfig, modelIds: string[], kind?: ProbeKind) => Promise<string | null>;
+  /** Creates the session and starts the run in the background. Returns the new session id immediately. */
+  startPerformance: (config: PerfConfig, modelIds: string[]) => string | null;
+  startCapabilities: (config: CapConfig, modelIds: string[], kind?: ProbeKind) => string | null;
   stop: () => void;
 }
 
@@ -54,7 +55,7 @@ export const useRun = create<RunState>()((set, get) => ({
   perfLive: null,
   capProgress: {},
 
-  async startPerformance(config, modelIds) {
+  startPerformance(config, modelIds) {
     if (get().active) return null;
     const bound = bindModels(modelIds);
     if (bound.length === 0) return null;
@@ -63,6 +64,7 @@ export const useRun = create<RunState>()((set, get) => ({
     const session: PerfSession = {
       id,
       kind: "performance",
+      version: PERF_CONFIG_VERSION,
       createdAt: Date.now(),
       finishedAt: null,
       status: "running",
@@ -80,6 +82,7 @@ export const useRun = create<RunState>()((set, get) => ({
       lastFlush = now;
       useResults.getState().patch(id, (s) => ({ ...(s as PerfSession), results: Object.fromEntries(bound.map((b) => [b.model.id, aggregate(b.model.id, samples[b.model.id])])) }));
     };
+    void (async () => {
     try {
       const results = await runPerformance({
         config,
@@ -100,10 +103,11 @@ export const useRun = create<RunState>()((set, get) => ({
     } finally {
       set({ active: null, perfLive: null });
     }
+    })();
     return id;
   },
 
-  async startCapabilities(config, modelIds, kind = "capability") {
+  startCapabilities(config, modelIds, kind = "capability") {
     if (get().active) return null;
     const bound = bindModels(modelIds);
     if (bound.length === 0) return null;
@@ -121,6 +125,7 @@ export const useRun = create<RunState>()((set, get) => ({
     };
     useResults.getState().upsert(session);
     set({ active: { sessionId: id, kind: "capability", controller }, capProgress: {} });
+    void (async () => {
     try {
       const results = await runCapabilities({
         config,
@@ -146,6 +151,7 @@ export const useRun = create<RunState>()((set, get) => ({
     } finally {
       set({ active: null });
     }
+    })();
     return id;
   },
 

@@ -4,29 +4,31 @@ import { estimateTokens } from "@/lib/llm/tokens";
 import { toLlmError } from "@/lib/llm/errors";
 import { sendBound, type BoundModel } from "@/lib/llm/model-client";
 import { uid } from "@/lib/utils/id";
-import { buildCachePrefix, buildPerfPrompt, cacheQuestion, makeRng, randomSeed } from "./prompts";
+import { buildPerfPrompt, makeRng, randomSeed } from "./prompts";
 import { computeScores } from "./scoring";
 import { median, summarize } from "./stats";
-import type { CacheStats, ModeStats, PerfConfig, PerfModelResult, RunMode, RunSample } from "./types";
+import type { CacheComparison, CacheCondition, ConditionStats, ModeStats, PerfConfig, PerfModelResult, RunMode, RunSample } from "./types";
+
+export type PerfPhase = "warmup" | "miss" | "hit" | "done";
 
 export interface PerfProgress {
   total: number;
   done: number;
-  phase: "warmup" | "stream" | "non_stream" | "cache" | "done";
+  phase: PerfPhase;
   currentModelId: string | null;
   currentMode: RunMode | null;
+  currentCache: CacheCondition | null;
   currentIndex: number | null;
-  /** Milliseconds the runner is deliberately sleeping (interval / cache warm delay). */
+  /** Milliseconds the runner is deliberately sleeping (interval / warm-up delay). */
   waitingMs: number | null;
 }
 
 export interface LiveState {
   modelId: string;
   mode: RunMode;
+  cache: CacheCondition;
   index: number;
   elapsedMs: number;
-  firstTokenMs: number | null;
-  firstContentMs: number | null;
   approxTokens: number;
   preview: string;
   reasoningPreview: string;
@@ -42,13 +44,14 @@ export interface PerfRunInput {
   seed?: number;
 }
 
-interface Job {
+export interface Job {
   bm: BoundModel;
   mode: RunMode;
+  cache: CacheCondition;
   index: number;
   warmup?: boolean;
-  phase: PerfProgress["phase"];
-  /** Sleep before starting this job (ms). */
+  phase: PerfPhase;
+  /** Sleep before starting this job (ms), instead of the regular interval. */
   delayBefore?: number;
 }
 
@@ -66,7 +69,7 @@ const sleep = (ms: number, signal: AbortSignal) =>
     signal.addEventListener("abort", onAbort, { once: true });
   });
 
-export function sampleFromResult(res: CompletionResult, base: Pick<RunSample, "id" | "modelId" | "mode" | "index" | "startedAt" | "warmup">): RunSample {
+export function sampleFromResult(res: CompletionResult, base: Pick<RunSample, "id" | "modelId" | "mode" | "cache" | "index" | "startedAt" | "warmup">): RunSample {
   const u = normalizeUsage(res.usage);
   let completionTokens = u.completionTokens;
   let estimated = false;
@@ -104,6 +107,7 @@ export function sampleFromResult(res: CompletionResult, base: Pick<RunSample, "i
 export function modeStats(samples: RunSample[]): ModeStats {
   const ok = samples.filter((s) => s.ok);
   const delays = ok.map((s) => (s.ttfcMs != null && s.firstReasoningMs != null && s.firstReasoningMs < s.ttfcMs ? s.ttfcMs - s.firstReasoningMs : null));
+  const reported = ok.some((s) => s.cachedTokens != null);
   return {
     n: samples.length,
     ok: ok.length,
@@ -114,53 +118,68 @@ export function modeStats(samples: RunSample[]): ModeStats {
     e2eTps: summarize(ok.map((s) => s.e2eTps)),
     completionTokens: summarize(ok.map((s) => s.completionTokens)),
     reasoningTokens: summarize(ok.map((s) => s.reasoningTokens)),
+    promptTokens: median(ok.map((s) => s.promptTokens)),
+    cachedTokens: reported ? median(ok.map((s) => s.cachedTokens ?? 0)) : null,
+    cachedSource: ok.find((s) => s.cachedSource)?.cachedSource ?? null,
     estimated: ok.some((s) => s.tokensEstimated),
     reasoningDelayMs: median(delays),
   };
 }
 
-export function cacheStats(samples: RunSample[]): CacheStats | null {
-  const cold = samples.filter((s) => s.mode === "cache_cold");
-  const warm = samples.filter((s) => s.mode === "cache_warm");
-  if (cold.length === 0 && warm.length === 0) return null;
-  const cs = modeStats(cold);
-  const ws = modeStats(warm);
-  const warmOk = warm.filter((s) => s.ok);
-  const coldOk = cold.filter((s) => s.ok);
-  const promptTokens = median(warmOk.map((s) => s.promptTokens)) ?? median(coldOk.map((s) => s.promptTokens));
-  const reported = warmOk.some((s) => s.cachedTokens != null);
-  const cachedTokensWarm = reported ? median(warmOk.map((s) => s.cachedTokens ?? 0)) : null;
-  const cachedTokensCold = coldOk.some((s) => s.cachedTokens != null) ? median(coldOk.map((s) => s.cachedTokens ?? 0)) : null;
-  const hitRatio = cachedTokensWarm != null && promptTokens ? Math.min(1, cachedTokensWarm / promptTokens) : null;
-  const ttftImprovement = cs.ttft && ws.ttft && cs.ttft.p50 > 0 ? 1 - ws.ttft.p50 / cs.ttft.p50 : null;
-  const totalImprovement = cs.total && ws.total && cs.total.p50 > 0 ? 1 - ws.total.p50 / cs.total.p50 : null;
-  return { cold: cs, warm: ws, promptTokens, cachedTokensWarm, cachedTokensCold, cachedSource: warmOk.find((s) => s.cachedSource)?.cachedSource ?? null, hitRatio, reported, ttftImprovement, totalImprovement };
+function conditionStats(samples: RunSample[], cache: CacheCondition): ConditionStats | null {
+  const mine = samples.filter((s) => s.cache === cache && !s.warmup);
+  if (mine.length === 0) return null;
+  const st = mine.filter((s) => s.mode === "stream");
+  const ns = mine.filter((s) => s.mode === "non_stream");
+  return { stream: st.length ? modeStats(st) : null, nonStream: ns.length ? modeStats(ns) : null };
+}
+
+export function compareConditions(miss: ConditionStats | null, hit: ConditionStats | null, hitSamples: RunSample[]): CacheComparison | null {
+  if (!miss || !hit) return null;
+  const hitOk = hitSamples.filter((s) => s.ok && !s.warmup);
+  const reported = hitOk.some((s) => s.cachedTokens != null);
+  const cachedTokens = reported ? median(hitOk.map((s) => s.cachedTokens ?? 0)) : null;
+  const promptTokens = median(hitOk.map((s) => s.promptTokens));
+  const hitRatio = cachedTokens != null && promptTokens ? Math.min(1, cachedTokens / promptTokens) : null;
+  const ratio = (a: number | null | undefined, b: number | null | undefined) => (a && b && a > 0 ? 1 - b / a : null);
+  const ttftImprovement = ratio(miss.stream?.ttft?.p50, hit.stream?.ttft?.p50);
+  const totalImprovement = ratio(miss.nonStream?.total?.p50, hit.nonStream?.total?.p50) ?? ratio(miss.stream?.total?.p50, hit.stream?.total?.p50);
+  return { promptTokens, cachedTokens, cachedSource: hitOk.find((s) => s.cachedSource)?.cachedSource ?? null, hitRatio, reported, ttftImprovement, totalImprovement };
 }
 
 export function aggregate(modelId: string, samples: RunSample[]): PerfModelResult {
-  const measured = samples.filter((s) => !s.warmup);
-  const streamS = measured.filter((s) => s.mode === "stream");
-  const nonS = measured.filter((s) => s.mode === "non_stream");
-  const stream = streamS.length ? modeStats(streamS) : null;
-  const nonStream = nonS.length ? modeStats(nonS) : null;
-  const cache = cacheStats(measured);
-  return { modelId, samples, stream, nonStream, cache, scores: computeScores(stream, nonStream, cache) };
+  const miss = conditionStats(samples, "miss");
+  const hit = conditionStats(samples, "hit");
+  const comparison = compareConditions(miss, hit, samples.filter((s) => s.cache === "hit"));
+  const scoredFrom: CacheCondition | null = miss ? "miss" : hit ? "hit" : null;
+  const basis = scoredFrom === "miss" ? miss : hit;
+  return { modelId, samples, miss, hit, comparison, scoredFrom, scores: computeScores(basis?.stream ?? null, basis?.nonStream ?? null, scoredFrom) };
 }
 
+/** Build the request schedule: round-robin across models; the hit block starts with one warm-up per model. */
 export function buildJobs(config: PerfConfig, models: BoundModel[]): Job[] {
   const jobs: Job[] = [];
-  if (config.warmup) for (const bm of models) jobs.push({ bm, mode: "stream", index: -1, warmup: true, phase: "warmup" });
-  for (let i = 0; i < config.runs; i++) {
-    if (config.modes.stream) for (const bm of models) jobs.push({ bm, mode: "stream", index: i, phase: "stream" });
-    if (config.modes.nonStream) for (const bm of models) jobs.push({ bm, mode: "non_stream", index: i, phase: "non_stream" });
-  }
-  if (config.modes.cache) {
-    for (const bm of models) jobs.push({ bm, mode: "cache_cold", index: 0, phase: "cache" });
-    for (let r = 1; r <= Math.max(1, config.cacheRepeats); r++) {
-      models.forEach((bm, mi) => jobs.push({ bm, mode: "cache_warm", index: r, phase: "cache", delayBefore: r === 1 && mi === 0 ? config.cacheWarmDelayMs : undefined }));
-    }
+  const modes: RunMode[] = [...(config.modes.stream ? (["stream"] as RunMode[]) : []), ...(config.modes.nonStream ? (["non_stream"] as RunMode[]) : [])];
+  const block = (cache: CacheCondition) => {
+    for (let i = 0; i < config.runs; i++) for (const mode of modes) for (const bm of models) jobs.push({ bm, mode, cache, index: i, phase: cache });
+  };
+  if (config.cacheMode === "miss" || config.cacheMode === "compare") block("miss");
+  if (config.cacheMode === "hit" || config.cacheMode === "compare") {
+    const warmMode: RunMode = modes[0] ?? "stream";
+    for (const bm of models) jobs.push({ bm, mode: warmMode, cache: "hit", index: -1, warmup: true, phase: "warmup" });
+    const firstMeasured = jobs.length;
+    block("hit");
+    if (jobs[firstMeasured]) jobs[firstMeasured].delayBefore = config.cacheWarmDelayMs;
   }
   return jobs;
+}
+
+/** Requests per model for the estimate shown in the UI. */
+export function requestsPerModel(config: PerfConfig): number {
+  const modes = (config.modes.stream ? 1 : 0) + (config.modes.nonStream ? 1 : 0);
+  const blocks = config.cacheMode === "compare" ? 2 : 1;
+  const warm = config.cacheMode === "miss" ? 0 : 1;
+  return config.runs * modes * blocks + warm;
 }
 
 export async function runPerformance(input: PerfRunInput): Promise<Record<string, PerfModelResult>> {
@@ -169,64 +188,52 @@ export async function runPerformance(input: PerfRunInput): Promise<Record<string
   const rng = makeRng(seed);
   const jobs = buildJobs(config, models);
   const samples: Record<string, RunSample[]> = Object.fromEntries(models.map((m) => [m.model.id, []]));
-  const cachePrefix = new Map<string, ReturnType<typeof buildCachePrefix>>();
+  /** In "hit" mode every request of a model reuses exactly the same messages. */
+  const fixedPrompt = new Map<string, ChatMessage[]>();
   const targetWords = Math.round(config.maxTokens * (config.promptLang === "zh" ? 1.2 : 0.9));
   let done = 0;
-  const progress = (extra: Partial<PerfProgress>) => onProgress({ total: jobs.length, done, phase: "stream", currentModelId: null, currentMode: null, currentIndex: null, waitingMs: null, ...extra });
+  const progress = (extra: Partial<PerfProgress>) => onProgress({ total: jobs.length, done, phase: "miss", currentModelId: null, currentMode: null, currentCache: null, currentIndex: null, waitingMs: null, ...extra });
 
   for (let j = 0; j < jobs.length; j++) {
     const job = jobs[j];
     if (signal.aborted) break;
     const wait = job.delayBefore ?? (j > 0 ? config.intervalMs : 0);
+    const current = { phase: job.phase, currentModelId: job.bm.model.id, currentMode: job.mode, currentCache: job.cache, currentIndex: job.index };
     if (wait > 0) {
-      progress({ phase: job.phase, waitingMs: wait, currentModelId: job.bm.model.id, currentMode: job.mode, currentIndex: job.index });
+      progress({ ...current, waitingMs: wait });
       try {
         await sleep(wait, signal);
       } catch {
         break;
       }
     }
-    progress({ phase: job.phase, currentModelId: job.bm.model.id, currentMode: job.mode, currentIndex: job.index });
+    progress(current);
     const modelId = job.bm.model.id;
-    const base = { id: uid("run"), modelId, mode: job.mode, index: job.index, startedAt: Date.now(), warmup: job.warmup };
+    const base = { id: uid("run"), modelId, mode: job.mode, cache: job.cache, index: job.index, startedAt: Date.now(), warmup: job.warmup };
     let messages: ChatMessage[];
-    const isCache = job.mode === "cache_cold" || job.mode === "cache_warm";
-    if (isCache) {
-      let prefix = cachePrefix.get(modelId);
-      if (!prefix) {
-        prefix = buildCachePrefix(rng, config.promptLang, config.cachePrefixTokens);
-        cachePrefix.set(modelId, prefix);
+    if (job.cache === "hit") {
+      let fixed = fixedPrompt.get(modelId);
+      if (!fixed) {
+        fixed = buildPerfPrompt(rng, config.promptLang, config.promptSize, targetWords, { randomizeEveryRequest: false }).messages;
+        fixedPrompt.set(modelId, fixed);
       }
-      messages = [
-        { role: "system", content: prefix.system },
-        { role: "user", content: cacheQuestion(rng, config.promptLang, job.index) },
-      ];
+      messages = fixed;
     } else {
-      messages = buildPerfPrompt(rng, config.promptLang, config.promptSize, targetWords).messages;
+      messages = buildPerfPrompt(rng, config.promptLang, config.promptSize, targetWords, { randomizeEveryRequest: true }).messages;
     }
-    const stream = job.mode !== "non_stream";
+    const stream = job.mode === "stream";
     let lastLive = 0;
     try {
       const res = await sendBound(job.bm, { messages, stream }, {
         signal,
-        maxTokens: isCache ? Math.min(config.maxTokens, 128) : config.maxTokens,
+        maxTokens: config.maxTokens,
         retryOnRateLimit: true,
         onChunk: ({ acc, elapsedMs }) => {
           if (!onLive) return;
           const now = performance.now();
           if (now - lastLive < 80) return;
           lastLive = now;
-          onLive({
-            modelId,
-            mode: job.mode,
-            index: job.index,
-            elapsedMs,
-            firstTokenMs: null,
-            firstContentMs: null,
-            approxTokens: estimateTokens(acc.rawContent) + estimateTokens(acc.reasoning),
-            preview: acc.rawContent.slice(-240),
-            reasoningPreview: acc.reasoning.slice(-160),
-          });
+          onLive({ modelId, mode: job.mode, cache: job.cache, index: job.index, elapsedMs, approxTokens: estimateTokens(acc.rawContent) + estimateTokens(acc.reasoning), preview: acc.rawContent.slice(-240), reasoningPreview: acc.reasoning.slice(-160) });
         },
       });
       const sample = sampleFromResult(res, base);
@@ -262,7 +269,7 @@ export async function runPerformance(input: PerfRunInput): Promise<Record<string
       onLive?.(null);
     }
     done++;
-    progress({ phase: job.phase, currentModelId: job.bm.model.id, currentMode: job.mode, currentIndex: job.index });
+    progress(current);
   }
   progress({ phase: "done" });
   const out: Record<string, PerfModelResult> = {};

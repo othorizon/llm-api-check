@@ -128,12 +128,14 @@ const MODELS = {
   "mock-flaky": { ttft: 300, tps: 80, reasoning: false, usage: true, cache: true },
 };
 
+// Prefix cache emulation: the prefix is every message except the last one; it must be
+// at least ~1024 tokens long and have been seen before to count as a hit.
 const cachePrefixes = new Map();
 function cachedTokens(body) {
-  const sys = body.messages?.find((m) => m.role === "system");
-  if (!sys) return 0;
-  const key = textOf(sys).slice(0, 4000);
-  if (key.length < 3000) return 0;
+  const msgs = body.messages ?? [];
+  if (msgs.length < 2) return 0;
+  const key = msgs.slice(0, -1).map((m) => `${m.role}:${textOf(m)}`).join("\n");
+  if (tok(key) < 1024) return 0;
   const seen = cachePrefixes.get(key);
   cachePrefixes.set(key, Date.now());
   return seen ? Math.floor(tok(key) / 64) * 64 : 0;
