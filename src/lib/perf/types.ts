@@ -20,6 +20,8 @@ export interface PerfConfig {
   customPrompt: string;
   promptSize: PromptSize;
   promptLang: PromptLang;
+  /** true = follow the page language until the user picks one explicitly. */
+  promptLangAuto: boolean;
   maxTokens: number;
   /** Pause between consecutive requests (ms). */
   intervalMs: number;
@@ -29,16 +31,17 @@ export interface PerfConfig {
   disableReasoning: string | null;
 }
 
-export const PERF_CONFIG_VERSION = 2;
+export const PERF_CONFIG_VERSION = 3;
 
 export const DEFAULT_PERF_CONFIG: PerfConfig = {
   runs: 3,
-  modes: { stream: true, nonStream: true },
+  modes: { stream: true, nonStream: false },
   cacheMode: "miss",
   promptSource: "generated",
   customPrompt: "",
-  promptSize: "short",
+  promptSize: "medium",
   promptLang: "en",
+  promptLangAuto: true,
   maxTokens: 256,
   intervalMs: 500,
   cacheWarmDelayMs: 3000,

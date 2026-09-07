@@ -66,6 +66,8 @@ log("models added");
 // 3. Performance test
 await page.goto(`${BASE}/en/performance`);
 await page.waitForSelector("text=Start performance test");
+await page.getByRole("button", { name: "Reset" }).click();
+await page.getByText("Non-streaming", { exact: true }).click();
 await page.getByLabel("Runs", { exact: true }).fill("2");
 await page.getByLabel("Max output tokens").fill("48");
 await page.getByText("Compare both").click();

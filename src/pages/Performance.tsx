@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useSearchParams } from "react-router";
-import { Play, Square, History, AlertTriangle } from "lucide-react";
+import { Play, Square, History, AlertTriangle, RotateCcw } from "lucide-react";
 import { useT } from "@/i18n";
 import { interpolate, useLocale } from "@/i18n/core";
 import { ClientOnly, Page } from "@/components/layout/AppShell";
@@ -51,7 +51,15 @@ function useLocalConfig() {
       }
       return next;
     });
-  return [config, update] as const;
+  const reset = () => {
+    try {
+      localStorage.removeItem(CONFIG_KEY);
+    } catch {
+      /* ignore */
+    }
+    setConfig(DEFAULT_PERF_CONFIG);
+  };
+  return [config, update, reset] as const;
 }
 
 function RadioCard({ checked, onSelect, name, label, desc, disabled }: { checked: boolean; onSelect: () => void; name: string; label: string; desc: string; disabled?: boolean }) {
@@ -216,7 +224,10 @@ function PerfWorkbench() {
   const active = useRun((s) => s.active);
   const start = useRun((s) => s.startPerformance);
   const [params, setParams] = useSearchParams();
-  const [config, update] = useLocalConfig();
+  const [config, update, reset] = useLocalConfig();
+  const locale = useLocale();
+  const pageLang: PerfConfig["promptLang"] = locale === "zh" ? "zh" : "en";
+  const effective: PerfConfig = { ...config, promptLang: config.promptLangAuto ? pageLang : config.promptLang };
   const [selected, setSelected] = React.useState<string[]>(() => models.map((m) => m.id).slice(0, 3));
   const [sessionId, setSessionId] = React.useState<string | null>(params.get("session"));
   React.useEffect(() => setSelected((s) => s.filter((id) => models.some((m) => m.id === id))), [models]);
@@ -233,7 +244,7 @@ function PerfWorkbench() {
   const cacheTooShort = hitInvolved && promptTokens < 1024;
 
   const onStart = () => {
-    const id = start(config, selected);
+    const id = start(effective, selected);
     if (id) {
       setSessionId(id);
       setParams({ session: id }, { replace: true });
@@ -251,7 +262,12 @@ function PerfWorkbench() {
         <Card>
           <CardHeader className="py-3">
             <CardTitle>{t.perf.config}</CardTitle>
-            <Badge>{interpolate(t.perf.estimate, { requests: perModel })}</Badge>
+            <div className="flex items-center gap-1">
+              <Badge>{interpolate(t.perf.estimate, { requests: perModel })}</Badge>
+              <Button size="sm" variant="ghost" onClick={reset} disabled={running} className="h-7 px-2 text-xs">
+                <RotateCcw className="h-3.5 w-3.5" /> {t.common.reset}
+              </Button>
+            </div>
           </CardHeader>
           <CardBody className="space-y-5">
             <div>
@@ -311,7 +327,7 @@ function PerfWorkbench() {
                     </Select>
                   </Field>
                   <Field label={t.perf.promptLang}>
-                    <Select value={config.promptLang} onChange={(e) => update({ promptLang: e.target.value as PerfConfig["promptLang"] })} disabled={running}>
+                    <Select value={effective.promptLang} onChange={(e) => update({ promptLang: e.target.value as PerfConfig["promptLang"], promptLangAuto: false })} disabled={running}>
                       <option value="en">{t.perf.promptLangs.en}</option>
                       <option value="zh">{t.perf.promptLangs.zh}</option>
                     </Select>

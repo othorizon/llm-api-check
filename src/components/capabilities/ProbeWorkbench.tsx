@@ -74,10 +74,8 @@ export function ProbeWorkbench({ kind, suites, defaults, startLabel, storageKey 
   const [selected, setSelected] = React.useState<string[]>(() => models.map((m) => m.id).slice(0, 2));
   const [sessionId, setSessionId] = React.useState<string | null>(params.get("session"));
   React.useEffect(() => setSelected((s) => s.filter((id) => models.some((m) => m.id === id))), [models]);
-  React.useEffect(() => {
-    if (config.lang !== (locale === "zh" ? "zh" : "en") && !localStorage.getItem(storageKey)) update({ lang: locale === "zh" ? "zh" : "en" });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const pageLang: "en" | "zh" = locale === "zh" ? "zh" : "en";
+  const effectiveLang: "en" | "zh" = config.langAuto === false ? config.lang : pageLang;
 
   const mine = sessions.filter((s): s is CapSession => s.kind === kind);
   const session = (sessionId ? mine.find((s) => s.id === sessionId) : null) ?? mine[0] ?? null;
@@ -87,7 +85,7 @@ export function ProbeWorkbench({ kind, suites, defaults, startLabel, storageKey 
   const anySuite = suites.some((s) => effectiveSuites[s]);
 
   const onStart = () => {
-    const id = start({ ...config, suites: effectiveSuites }, selected, kind);
+    const id = start({ ...config, lang: effectiveLang, suites: effectiveSuites }, selected, kind);
     if (id) {
       setSessionId(id);
       setParams({ session: id }, { replace: true });
@@ -126,7 +124,7 @@ export function ProbeWorkbench({ kind, suites, defaults, startLabel, storageKey 
               )}
               <div className="grid grid-cols-2 gap-3 px-2">
                 <Field label={t.caps.promptLang}>
-                  <Select value={config.lang} onChange={(e) => update({ lang: e.target.value as "en" | "zh" })} disabled={running}>
+                  <Select value={effectiveLang} onChange={(e) => update({ lang: e.target.value as "en" | "zh", langAuto: false })} disabled={running}>
                     <option value="en">{t.perf.promptLangs.en}</option>
                     <option value="zh">{t.perf.promptLangs.zh}</option>
                   </Select>

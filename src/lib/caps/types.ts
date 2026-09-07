@@ -73,6 +73,8 @@ export interface CapTestDef {
 export interface CapConfig {
   suites: Record<CapSuiteId, boolean>;
   lang: "en" | "zh";
+  /** true = follow the page language until the user picks one explicitly. */
+  langAuto?: boolean;
   /** Max models tested concurrently. */
   concurrency: number;
 }
@@ -80,6 +82,7 @@ export interface CapConfig {
 export const DEFAULT_CAP_CONFIG: CapConfig = {
   suites: { connectivity: true, reasoning: true, tools: true, structured: true, vision: true, cache: true, compat: true, messages: false },
   lang: "en",
+  langAuto: true,
   concurrency: 2,
 };
 
@@ -93,6 +96,7 @@ export interface CapModelResult {
 export const DEFAULT_MESSAGES_CONFIG: CapConfig = {
   suites: { connectivity: true, reasoning: false, tools: false, structured: false, vision: false, cache: false, compat: false, messages: true },
   lang: "en",
+  langAuto: true,
   concurrency: 2,
 };
 

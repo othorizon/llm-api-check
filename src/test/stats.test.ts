@@ -76,16 +76,18 @@ describe("reasoning parameters", () => {
 describe("runner helpers", () => {
   it("builds round-robin jobs per cache mode", () => {
     const models = [{ model: { id: "a" } }, { model: { id: "b" } }] as any;
-    const miss = buildJobs({ ...DEFAULT_PERF_CONFIG, runs: 2, cacheMode: "miss" }, models);
+    const both = { ...DEFAULT_PERF_CONFIG, modes: { stream: true, nonStream: true } };
+    const miss = buildJobs({ ...both, runs: 2, cacheMode: "miss" }, models);
     expect(miss.map((j) => `${j.bm.model.id}:${j.mode}:${j.cache}`)).toEqual(["a:stream:miss", "b:stream:miss", "a:non_stream:miss", "b:non_stream:miss", "a:stream:miss", "b:stream:miss", "a:non_stream:miss", "b:non_stream:miss"]);
     expect(miss.some((j) => j.warmup)).toBe(false);
-    const hit = buildJobs({ ...DEFAULT_PERF_CONFIG, runs: 1, cacheMode: "hit" }, models);
+    const hit = buildJobs({ ...both, runs: 1, cacheMode: "hit" }, models);
     expect(hit.map((j) => `${j.bm.model.id}:${j.cache}:${j.warmup ? "warm" : j.mode}`)).toEqual(["a:hit:warm", "b:hit:warm", "a:hit:stream", "b:hit:stream", "a:hit:non_stream", "b:hit:non_stream"]);
     expect(hit[2].delayBefore).toBe(DEFAULT_PERF_CONFIG.cacheWarmDelayMs);
-    const compare = buildJobs({ ...DEFAULT_PERF_CONFIG, runs: 1, cacheMode: "compare" }, models);
+    const compare = buildJobs({ ...both, runs: 1, cacheMode: "compare" }, models);
     expect(compare.filter((j) => j.cache === "miss").length).toBe(4);
     expect(compare.filter((j) => j.warmup).length).toBe(2);
-    expect(requestsPerModel({ ...DEFAULT_PERF_CONFIG, runs: 3, cacheMode: "compare" })).toBe(13);
+    expect(requestsPerModel({ ...DEFAULT_PERF_CONFIG, runs: 3, cacheMode: "compare" })).toBe(7); // streaming only by default: 3 miss + 1 warm-up + 3 hit
+    expect(DEFAULT_PERF_CONFIG).toMatchObject({ modes: { stream: true, nonStream: false }, cacheMode: "miss", promptSize: "medium", disableReasoning: "thinking_type", promptLangAuto: true });
   });
   it("derives a sample from a streamed result", () => {
     const res: CompletionResult = { content: "hello world", reasoning: "", reasoningSource: null, toolCalls: [], finishReason: "stop", refusal: null, usage: { completion_tokens: 101, prompt_tokens: 20 }, raw: null, chunkCount: 101, streamed: true, timing: { startAt: 0, headersMs: 100, firstTokenMs: 200, firstContentMs: 200, firstReasoningMs: null, firstToolCallMs: null, totalMs: 1200 } };

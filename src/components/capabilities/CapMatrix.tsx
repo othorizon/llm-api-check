@@ -255,15 +255,22 @@ export function CapMatrix({ session }: { session: CapSession }) {
   );
 }
 
-function highlightsFor(session: CapSession, modelId: string, t: ReturnType<typeof useT>): { tone: "good" | "warning" | "critical" | "neutral"; text: string }[] {
+interface Highlight {
+  tone: "good" | "warning" | "critical" | "neutral";
+  text: string;
+  /** Extra values rendered as their own (monospace) badges so long lists wrap instead of overflowing. */
+  items?: string[];
+}
+
+function highlightsFor(session: CapSession, modelId: string, t: ReturnType<typeof useT>): Highlight[] {
   const o = session.results[modelId]?.outcomes ?? {};
-  const out: { tone: "good" | "warning" | "critical" | "neutral"; text: string }[] = [];
+  const out: Highlight[] = [];
   const h = t.caps.highlights;
   const st = (id: string) => o[id]?.status;
   if (st("reasoning.default") === "pass") out.push({ tone: "neutral", text: h.reasoning_on });
   else if (st("reasoning.default") === "fail") out.push({ tone: "neutral", text: h.reasoning_off });
   const tog = o["reasoning.toggle"];
-  if (tog?.suggestions?.length) out.push({ tone: "good", text: h.toggle.replace("{dialect}", tog.suggestions.map((x) => x.label).join(" · ")) });
+  if (tog?.suggestions?.length) out.push({ tone: "good", text: h.toggle.replace("{dialect}", "").replace(/[:：]\s*$/, ""), items: tog.suggestions.map((x) => x.label) });
   const toolModes = [
     ["tools.auto", "auto"],
     ["tools.required", "required"],
@@ -305,16 +312,23 @@ export function CapSessionView({ session, showActions = true }: { session: CapSe
             {session.models.map((snap, i) => {
               const hs = highlightsFor(session, snap.id, t);
               return (
-                <div key={snap.id} className="rounded-md border border-border p-3">
+                <div key={snap.id} className="min-w-0 rounded-md border border-border p-3">
                   <div className="mb-2 flex items-center gap-1.5 text-sm font-medium">
                     <SeriesDot index={i} /> {snap.label}
                   </div>
                   {hs.length ? (
                     <div className="flex flex-wrap gap-1.5">
                       {hs.map((x, j) => (
-                        <Badge key={j} tone={x.tone}>
-                          {x.text}
-                        </Badge>
+                        <React.Fragment key={j}>
+                          <Badge tone={x.tone} className="max-w-full whitespace-normal">
+                            {x.text}
+                          </Badge>
+                          {x.items?.map((it) => (
+                            <Badge key={it} tone={x.tone} className="mono max-w-full whitespace-normal break-all">
+                              {it}
+                            </Badge>
+                          ))}
+                        </React.Fragment>
                       ))}
                     </div>
                   ) : (
