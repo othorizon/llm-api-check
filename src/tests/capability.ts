@@ -5,6 +5,7 @@ import {
   SHORT_ANSWER_SYSTEM, nonce, makeDigitImage, validateSchema,
 } from './fixtures'
 import { evidence, transportFailure } from './helpers'
+import { THINKING_OFF_VARIANTS } from '../lib/thinking'
 
 const REASONING_PROMPT =
   '一个水池有两个进水管和一个出水管。A 管单独 6 小时注满，B 管单独 4 小时注满，出水管单独 12 小时排空。' +
@@ -172,7 +173,9 @@ export const CAPABILITY_CHECKS: CheckDef[] = [
 | \`chat_template_kwargs: { enable_thinking: false }\` | vLLM / SGLang 自建 |
 | \`reasoning: { enabled: false }\` | OpenRouter |
 
-判定：**HTTP 200 且本次响应不再产生思维链** 记为有效；只是不报错但仍在思考，记为“接受但未生效”；返回 4xx 记为不支持。`,
+判定：**HTTP 200 且本次响应不再产生思维链** 记为有效；只是不报错但仍在思考，记为“接受但未生效”；返回 4xx 记为不支持。
+
+这里探测出的有效写法，可以直接拿到运行参数里作为性能测试「关闭思维链」对比条件所用的写法。`,
     async run(ctx) {
       const detected = ctx.shared.get('reasoning.detected') === true
       if (!detected) {
@@ -183,14 +186,7 @@ export const CAPABILITY_CHECKS: CheckDef[] = [
           evidence: [],
         }
       }
-      const attempts: { id: string; label: string; extra: Record<string, unknown> }[] = [
-        { id: 'effort-minimal', label: 'reasoning_effort: "minimal"', extra: { reasoning_effort: 'minimal' } },
-        { id: 'effort-none', label: 'reasoning_effort: "none"', extra: { reasoning_effort: 'none' } },
-        { id: 'thinking-disabled', label: 'thinking: { type: "disabled" }', extra: { thinking: { type: 'disabled' } } },
-        { id: 'enable-thinking', label: 'enable_thinking: false', extra: { enable_thinking: false } },
-        { id: 'chat-template', label: 'chat_template_kwargs: { enable_thinking: false }', extra: { chat_template_kwargs: { enable_thinking: false } } },
-        { id: 'openrouter', label: 'reasoning: { enabled: false }', extra: { reasoning: { enabled: false } } },
-      ]
+      const attempts = THINKING_OFF_VARIANTS
       const variants: VariantResult[] = []
       const ev: Evidence[] = []
       let works = 0

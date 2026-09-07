@@ -5,6 +5,7 @@ import { ALL_CHECKS, CHECK_MAP } from '../tests'
 import { chat as rawChat } from './client'
 import { pool, uid } from './util'
 import { presetOf } from './presets'
+import { DEFAULT_THINKING_OFF_ID } from './thinking'
 
 export const DEFAULT_OPTIONS: RunOptions = {
   rounds: 3,
@@ -15,6 +16,8 @@ export const DEFAULT_OPTIONS: RunOptions = {
   cachePrefixTokens: 2400,
   randomizePrompts: true,
   perfOutputTokens: 256,
+  perfThinkingCompare: true,
+  thinkingOffId: DEFAULT_THINKING_OFF_ID,
 }
 
 /** 把选中的 check 展开为包含依赖、并按注册顺序排序的列表 */

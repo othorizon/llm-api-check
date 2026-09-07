@@ -7,6 +7,7 @@ import { useRun } from '../RunContext'
 import { actions, providerMap, useStore } from '../lib/store'
 import { ALL_CHECKS, CHECK_MAP, GROUPS, SUITES, estimateRequests } from '../tests'
 import { expandChecks } from '../lib/engine'
+import { THINKING_OFF_VARIANTS, thinkingOffVariant } from '../lib/thinking'
 import type { CheckDef, SuiteId } from '../lib/types'
 import { classNames, fmtMs } from '../lib/util'
 
@@ -45,7 +46,7 @@ export default function RunPage() {
 
   const expanded = useMemo(() => expandChecks(Array.from(selectedChecks)), [selectedChecks])
   const autoAdded = expanded.filter((c) => !selectedChecks.has(c.id))
-  const perModelRequests = estimateRequests(expanded.map((c) => c.id), options.rounds)
+  const perModelRequests = estimateRequests(expanded.map((c) => c.id), options)
   const totalRequests = perModelRequests * selectedModels.size
 
   const canRun = selectedModels.size > 0 && expanded.length > 0 && !running
@@ -280,6 +281,50 @@ export default function RunPage() {
               label="随机化提示词以规避缓存"
               hint="在每轮提示词最前面注入随机 run-id。关闭后多轮结果可能因命中 Prompt Cache 而虚高。"
             />
+
+            <div className="border-t border-line pt-4">
+              <div className="mb-3 flex items-center gap-1.5">
+                <h3 className="text-[13px] font-semibold">思维链条件</h3>
+                <Popover label="思维链条件说明" width={400}>
+                  <h3 className="mb-2 text-sm font-semibold">为什么要分两种条件测</h3>
+                  <Markdown
+                    text={`推理模型在正文之前会先输出思维链，这段时间会**整个计入 TTFT**。同一个模型，思考开着和关掉，首字时延可以差一个数量级 —— 这正是很多推理模型在语音场景不可用、关掉思考后又变得可用的原因。
+
+开启对比后，**每个性能测试项**都会跑两遍：一遍不干预（模型默认行为），一遍带上关闭写法。两组结果分别展示，语音适配度也会分别给出评级。
+
+关闭写法业界没有统一标准，这里列出的都是主流厂商的实际写法。如果不确定该选哪个，可以先跑一遍能力测试里的「关闭思维链的传参方式」，它会把所有写法逐个试出来。
+
+模型本身不输出思维链时，对比条件会自动跳过，不会浪费额度。`}
+                  />
+                </Popover>
+              </div>
+
+              <Toggle
+                checked={options.perfThinkingCompare}
+                onChange={(v) => actions.setOptions({ perfThinkingCompare: v })}
+                label="同时测试关闭思维链后的表现"
+                hint="每个性能测试项各跑两遍：默认行为 + 关闭思维链。模型不输出思维链时自动跳过。"
+              />
+
+              {options.perfThinkingCompare && (
+                <div className="mt-3">
+                  <Field
+                    label="关闭思维链的写法"
+                    hint={`常见于：${thinkingOffVariant(options.thinkingOffId).vendors}`}
+                  >
+                    <select
+                      className="input font-mono text-[12px]"
+                      value={options.thinkingOffId}
+                      onChange={(e) => actions.setOptions({ thinkingOffId: e.target.value })}
+                    >
+                      {THINKING_OFF_VARIANTS.map((v) => (
+                        <option key={v.id} value={v.id}>{v.label}</option>
+                      ))}
+                    </select>
+                  </Field>
+                </div>
+              )}
+            </div>
           </section>
 
           <section className="card card-pad">
@@ -290,6 +335,11 @@ export default function RunPage() {
               <Row k="每模型请求" v={`≈ ${perModelRequests} 次`} />
               <Row k="总请求数" v={<span className="font-semibold text-ink">≈ {totalRequests} 次</span>} />
             </dl>
+            {options.perfThinkingCompare && (
+              <p className="mt-3 rounded-lg border border-line bg-raised px-2.5 py-2 text-[12px] leading-relaxed text-muted">
+                已按「关闭思维链对比」双倍计算性能测试请求数，这是<strong className="font-medium text-ink">上限</strong>：模型不输出思维链时对比条件会自动跳过，实际次数更少。
+              </p>
+            )}
             {autoAdded.length > 0 && (
               <p className="mt-3 rounded-lg border border-line bg-raised px-2.5 py-2 text-[12px] leading-relaxed text-muted">
                 已自动补上 {autoAdded.length} 个前置依赖项：{autoAdded.map((c) => c.title).join('、')}

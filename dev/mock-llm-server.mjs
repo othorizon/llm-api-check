@@ -6,6 +6,7 @@
  * 提供几个行为各异的模型：
  *   mock-basic      普通模型：无思维链，支持工具与 json_schema
  *   mock-reasoner   推理模型：返回 reasoning_content，支持 reasoning_effort 与 enable_thinking:false
+ *   mock-qwen-style 推理模型，但只认 enable_thinking:false，拒绝 thinking:{type:"disabled"}
  *   mock-strict     严格端点：拒绝多条 system / 非交替轮次 / 残缺 tool 消息 / json_schema strict
  *   mock-slow       慢速模型：首 token 与吐字都很慢，用于验证语音评级
  */
@@ -20,7 +21,7 @@ const CORS = {
   'Access-Control-Max-Age': '86400',
 }
 
-const MODELS = ['mock-basic', 'mock-reasoner', 'mock-strict', 'mock-slow']
+const MODELS = ['mock-basic', 'mock-reasoner', 'mock-qwen-style', 'mock-strict', 'mock-slow']
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const rand = (a, b) => a + Math.random() * (b - a)
 
@@ -40,9 +41,10 @@ const server = http.createServer(async (req, res) => {
   const model = String(body.model || 'mock-basic')
   const strict = model === 'mock-strict'
   const slow = model === 'mock-slow'
-  const reasoner = model === 'mock-reasoner'
+  const qwenStyle = model === 'mock-qwen-style'
+  const reasoner = model === 'mock-reasoner' || qwenStyle
 
-  const bad = validate(body, { strict, reasoner })
+  const bad = validate(body, { strict, reasoner, qwenStyle })
   if (bad) return end(res, 400, { 'Content-Type': 'application/json' }, JSON.stringify({ error: { message: bad, type: 'invalid_request_error' } }))
 
   const plan = respond(body, { strict, reasoner })
@@ -106,11 +108,13 @@ const server = http.createServer(async (req, res) => {
 
 /* ----------------------------- 行为实现 ----------------------------- */
 
-function validate(body, { strict, reasoner }) {
+function validate(body, { strict, reasoner, qwenStyle }) {
   const msgs = body.messages ?? []
   if (!msgs.length) return 'messages 不能为空'
   if (!reasoner && body.reasoning_effort) return `Unsupported parameter: 'reasoning_effort' is not supported with this model.`
   if (body.thinking && !reasoner) return `Unsupported parameter: 'thinking'.`
+  // 只认 enable_thinking 的端点：显式拒绝 thinking 写法
+  if (body.thinking && qwenStyle) return `Unsupported parameter: 'thinking'. Use 'enable_thinking' instead.`
   if (strict) {
     const roles = msgs.map((m) => m.role)
     if (roles.filter((r) => r === 'system').length > 1) return 'Only one system message is allowed.'
@@ -151,7 +155,7 @@ function respond(body, { strict, reasoner }) {
     body.chat_template_kwargs?.enable_thinking === false
   const effort = body.reasoning_effort ?? 'medium'
   const reasoning = reasoner && !thinkingOff
-    ? '让我想想。'.repeat({ low: 4, medium: 14, high: 40 }[effort] ?? 14)
+    ? '让我想想。'.repeat({ low: 12, medium: 45, high: 120 }[effort] ?? 45)
     : ''
 
   // 工具结果回填

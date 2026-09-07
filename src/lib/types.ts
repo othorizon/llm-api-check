@@ -91,6 +91,19 @@ export interface SeriesPoint {
   outputTokens?: number
 }
 
+/** 同一测试项在不同条件下（如思维链开启 / 关闭）的一组结果 */
+export interface ConditionResult {
+  id: string
+  label: string
+  status: CheckStatus
+  summary: string
+  detail?: string
+  metrics?: Record<string, number | string | boolean | null>
+  series?: SeriesPoint[]
+  evidence: Evidence[]
+  grade?: { label: string; tone: 'ok' | 'warn' | 'bad' | 'info'; score?: number }
+}
+
 export interface CheckOutcome {
   status: CheckStatus
   /** 一句话结论 */
@@ -102,6 +115,11 @@ export interface CheckOutcome {
   series?: SeriesPoint[]
   /** 结论徽章（如语音场景评级） */
   grade?: { label: string; tone: 'ok' | 'warn' | 'bad' | 'info'; score?: number }
+  /**
+   * 分条件结果。存在时，顶层 summary / metrics / series 取自第一个条件（默认条件），
+   * 以保证不关心条件维度的展示逻辑仍然可用。
+   */
+  conditions?: ConditionResult[]
   startedAt?: number
   finishedAt?: number
 }
@@ -122,6 +140,10 @@ export interface RunOptions {
   randomizePrompts: boolean
   /** 性能测试使用的输出长度目标 */
   perfOutputTokens: number
+  /** 性能测试是否额外跑一遍「关闭思维链」的对比条件 */
+  perfThinkingCompare: boolean
+  /** 关闭思维链采用的写法 id，见 lib/thinking.ts */
+  thinkingOffId: string
 }
 
 export interface CheckDef {

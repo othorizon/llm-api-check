@@ -7,7 +7,7 @@ import { useRun } from '../RunContext'
 import { actions, useStore } from '../lib/store'
 import { CHECK_MAP, SUITES, displayGroupsOfSuite } from '../tests'
 import { isTransportBroken, scoreSuite } from '../lib/engine'
-import type { CheckOutcome, CheckStatus, RunSession, SuiteId } from '../lib/types'
+import type { CheckOutcome, CheckStatus, RunSession, SeriesPoint, SuiteId } from '../lib/types'
 import { classNames, download, fmtInt, fmtMs, fmtNum, fmtTime, safeJson } from '../lib/util'
 
 type TabId = 'overview' | SuiteId
@@ -147,6 +147,7 @@ function OverviewTab({
           const stream = r?.checks['perf.stream']
           const voice = r?.checks['perf.voice']
           const cache = r?.checks['perf.cache']
+          const voiceOff = voice?.conditions?.find((c) => c.id === 'thinking-off')
           const cap = scoreSuite(r, capIds)
           const msg = scoreSuite(r, msgIds)
           const broken = isTransportBroken(r)
@@ -157,19 +158,15 @@ function OverviewTab({
                   <h2 className="truncate text-[15px] font-semibold">{snap?.alias}</h2>
                   <p className="mt-0.5 truncate text-[12px] text-faint">{snap?.providerName} · {snap?.model}</p>
                 </div>
-                {voice?.grade && (
-                  <span
-                    className={classNames(
-                      'shrink-0 rounded-lg border px-2.5 py-1 text-[12px] font-medium',
-                      voice.grade.tone === 'ok' && 'border-ok/30 bg-ok/10 text-ok',
-                      voice.grade.tone === 'warn' && 'border-warn/30 bg-warn/10 text-warn',
-                      voice.grade.tone === 'bad' && 'border-bad/30 bg-bad/10 text-bad',
-                      voice.grade.tone === 'info' && 'border-info/30 bg-info/10 text-info',
-                    )}
-                  >
-                    {voice.grade.label}
-                  </span>
-                )}
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  <GradeBadge grade={voice?.grade} />
+                  {voiceOff?.grade && (
+                    <span className="flex items-center gap-1.5">
+                      <span className="text-[11px] text-faint">关闭思维链</span>
+                      <GradeBadge grade={voiceOff.grade} />
+                    </span>
+                  )}
+                </div>
               </div>
 
               <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
@@ -223,6 +220,12 @@ function OverviewTab({
                   {voice.detail}
                 </div>
               )}
+              {voiceOff?.detail && (
+                <div className="mt-2 whitespace-pre-line rounded-lg border border-info/25 bg-info/5 px-3 py-2.5 text-[12.5px] leading-relaxed text-muted">
+                  <span className="mb-1 block text-[11.5px] font-medium text-info">关闭思维链后</span>
+                  {voiceOff.detail}
+                </div>
+              )}
             </article>
           )
         })}
@@ -234,6 +237,34 @@ function OverviewTab({
         {!!msgIds.length && <Button size="sm" icon="message" onClick={() => onGoTab('message-format')}>查看消息格式兼容性</Button>}
       </div>
     </div>
+  )
+}
+
+
+function GradeBadge({ grade }: { grade?: { label: string; tone: 'ok' | 'warn' | 'bad' | 'info'; score?: number } }) {
+  if (!grade) return null
+  return (
+    <span
+      className={classNames(
+        'shrink-0 rounded-lg border px-2.5 py-1 text-[12px] font-medium whitespace-nowrap',
+        grade.tone === 'ok' && 'border-ok/30 bg-ok/10 text-ok',
+        grade.tone === 'warn' && 'border-warn/30 bg-warn/10 text-warn',
+        grade.tone === 'bad' && 'border-bad/30 bg-bad/10 text-bad',
+        grade.tone === 'info' && 'border-info/30 bg-info/10 text-info',
+      )}
+    >
+      {grade.label}
+      {grade.score != null && <span className="ml-1 opacity-70 tnum">{grade.score}</span>}
+    </span>
+  )
+}
+
+function ConditionChip({ id, label }: { id: string; label?: string }) {
+  const off = id === 'thinking-off'
+  return (
+    <span className={classNames('chip', off && 'border-info/30 bg-info/10 text-info')} title={label}>
+      {off ? '关闭思维链' : '默认'}
+    </span>
   )
 }
 
@@ -259,19 +290,77 @@ const PERF_COLUMNS: { key: string; checkId: string; metric: string; label: strin
   { key: 'voice', checkId: 'perf.voice', metric: '综合得分', label: '语音适配分', fmt: (n) => String(Math.round(n)), lowerBetter: false },
 ]
 
+
+/**
+ * 性能表的行模型：每个模型按「思维链条件」展开成一到多行。
+ * 没有条件维度的旧结果只产生一行，保持向后兼容。
+ */
+interface PerfCell {
+  value: number | null
+  status?: CheckStatus
+}
+
+interface PerfRow {
+  modelId: string
+  id: string
+  label: string
+  showConditionLabel: boolean
+  cells: Record<string, PerfCell>
+  streamSeries: SeriesPoint[]
+}
+
+function conditionRows(session: RunSession, modelId: string): PerfRow[] {
+  const result = session.results[modelId]
+  const ids: string[] = []
+  const labels: Record<string, string> = {}
+  for (const col of PERF_COLUMNS) {
+    for (const c of result?.checks[col.checkId]?.conditions ?? []) {
+      if (!ids.includes(c.id)) { ids.push(c.id); labels[c.id] = c.label }
+    }
+  }
+  if (!ids.length) ids.push('default')
+
+  return ids.map((id) => {
+    const cells: Record<string, PerfCell> = {}
+    for (const col of PERF_COLUMNS) {
+      const outcome = result?.checks[col.checkId]
+      // 有条件维度时取对应条件；没有的话只把顶层值放进默认行
+      const src = outcome?.conditions
+        ? outcome.conditions.find((c) => c.id === id)
+        : id === 'default' ? outcome : undefined
+      const raw = src?.metrics?.[col.metric]
+      cells[col.key] = {
+        value: typeof raw === 'number' && Number.isFinite(raw) ? raw : null,
+        status: src?.status,
+      }
+    }
+    const stream = result?.checks['perf.stream']
+    const streamSeries =
+      (stream?.conditions ? stream.conditions.find((c) => c.id === id)?.series : id === 'default' ? stream?.series : [])
+      ?? []
+    return {
+      modelId,
+      id,
+      label: labels[id] ?? '默认',
+      showConditionLabel: ids.length > 1,
+      cells,
+      streamSeries,
+    }
+  })
+}
+
 function PerformanceTab({ session, onOpen }: { session: RunSession; onOpen: (d: { modelId: string; checkId: string }) => void }) {
   const cols = PERF_COLUMNS.filter((c) => session.checkIds.includes(c.checkId))
+  // 每个模型按「思维链条件」展开成一到多行
+  const allRows = session.modelIds.flatMap((id) => conditionRows(session, id))
+  const totalRows = allRows.length
+
   const values = (col: typeof PERF_COLUMNS[number]) =>
-    session.modelIds.map((id) => {
-      const v = session.results[id]?.checks[col.checkId]?.metrics?.[col.metric]
-      return typeof v === 'number' && Number.isFinite(v) ? v : null
-    })
+    allRows.map((row) => row.cells[col.key]?.value ?? null)
 
   const globalMaxTtft = Math.max(
     1,
-    ...session.modelIds.flatMap((id) =>
-      (session.results[id]?.checks['perf.stream']?.series ?? []).map((p) => p.ttftMs ?? 0),
-    ),
+    ...allRows.flatMap((row) => row.streamSeries.map((p) => p.ttftMs ?? 0)),
   )
 
   const bests = new Map<string, number | null>()
@@ -304,38 +393,67 @@ function PerformanceTab({ session, onOpen }: { session: RunSession; onOpen: (d: 
             <tbody>
               {session.modelIds.map((id) => {
                 const snap = session.modelSnapshots[id]
+                const rows = conditionRows(session, id)
                 return (
-                  <tr key={id} className="border-b border-line last:border-0 hover:bg-raised/60">
-                    <td className="sticky left-0 z-10 bg-surface px-4 py-2.5">
-                      <div className="max-w-[220px] truncate font-medium">{snap?.alias}</div>
-                      <div className="max-w-[220px] truncate text-[11px] text-faint">{snap?.providerName}</div>
-                    </td>
-                    {cols.map((c, colIdx) => {
-                      const outcome = session.results[id]?.checks[c.checkId]
-                      const raw = outcome?.metrics?.[c.metric]
-                      const v = typeof raw === 'number' && Number.isFinite(raw) ? raw : null
-                      const best = bests.get(c.key)
-                      const isBest = v != null && best != null && Math.abs(v - best) < 1e-9 && session.modelIds.length > 1
-                      // 同一个检查项跨多列时，状态徽章只在第一列显示，避免重复噪音
-                      const firstOfCheck = cols.findIndex((x) => x.checkId === c.checkId) === colIdx
-                      return (
-                        <td key={c.key} className="px-3 py-2.5">
-                          <button
-                            className="group inline-flex items-center gap-1.5 text-left"
-                            onClick={() => onOpen({ modelId: id, checkId: c.checkId })}
-                          >
-                            <span className={classNames('tnum', isBest ? 'font-semibold text-ok' : 'text-ink')}>
-                              {v != null ? c.fmt(v) : <span className="text-faint">—</span>}
-                            </span>
-                            {isBest && <Icon name="check" size={11} className="text-ok" strokeWidth={3} />}
-                            {v == null && outcome && outcome.status !== 'pass' && firstOfCheck && (
-                              <StatusPill status={outcome.status} size="sm" />
-                            )}
-                          </button>
+                  <Fragment key={id}>
+                    {rows.map((row, rowIdx) => (
+                      <tr
+                        key={row.id}
+                        className={classNames(
+                          'hover:bg-raised/60',
+                          rowIdx === rows.length - 1 ? 'border-b border-line' : '',
+                        )}
+                      >
+                        <td className="sticky left-0 z-10 bg-surface px-4 py-2.5">
+                          {rowIdx === 0 ? (
+                            <>
+                              <div className="max-w-[220px] truncate font-medium">{snap?.alias}</div>
+                              <div className="max-w-[220px] truncate text-[11px] text-faint">{snap?.providerName}</div>
+                            </>
+                          ) : null}
+                          {rows.length > 1 && (
+                            <div className={rowIdx === 0 ? 'mt-1' : ''}>
+                              <span
+                                className={classNames(
+                                  'chip',
+                                  row.id === 'thinking-off' && 'border-info/30 bg-info/10 text-info',
+                                )}
+                                title={row.label}
+                              >
+                                {row.id === 'thinking-off' ? '关闭思维链' : '默认'}
+                              </span>
+                            </div>
+                          )}
                         </td>
-                      )
-                    })}
-                  </tr>
+                        {cols.map((c, colIdx) => {
+                          const cell = row.cells[c.key]
+                          const best = bests.get(c.key)
+                          const v = cell?.value ?? null
+                          // 全列都是负向数值时（例如缓存反而更慢），不标「最优」以免误读
+                          const meaningful = best != null && (c.lowerBetter || best > 0)
+                          const isBest =
+                            v != null && best != null && meaningful && Math.abs(v - best) < 1e-9 && totalRows > 1
+                          const firstOfCheck = cols.findIndex((x) => x.checkId === c.checkId) === colIdx
+                          return (
+                            <td key={c.key} className="px-3 py-2.5">
+                              <button
+                                className="group inline-flex items-center gap-1.5 text-left"
+                                onClick={() => onOpen({ modelId: id, checkId: c.checkId })}
+                              >
+                                <span className={classNames('tnum', isBest ? 'font-semibold text-ok' : 'text-ink')}>
+                                  {v != null ? c.fmt(v) : <span className="text-faint">—</span>}
+                                </span>
+                                {isBest && <Icon name="check" size={11} className="text-ok" strokeWidth={3} />}
+                                {v == null && cell?.status && cell.status !== 'pass' && firstOfCheck && (
+                                  <StatusPill status={cell.status} size="sm" />
+                                )}
+                              </button>
+                            </td>
+                          )
+                        })}
+                      </tr>
+                    ))}
+                  </Fragment>
                 )
               })}
             </tbody>
@@ -351,13 +469,17 @@ function PerformanceTab({ session, onOpen }: { session: RunSession; onOpen: (d: 
             每一轮都使用随机化提示词，柱高代表该轮的首 token 时延；差异过大说明服务端负载不稳定。
           </p>
           <div className="mt-4 space-y-2.5">
-            {session.modelIds.map((id) => {
-              const s = session.results[id]?.checks['perf.stream']
-              const series = s?.series ?? []
+            {allRows.map((row) => {
+              const series = row.streamSeries
               return (
-                <div key={id} className="flex items-center gap-3">
-                  <div className="w-36 shrink-0 truncate text-[12.5px]" title={session.modelSnapshots[id]?.alias}>
-                    {session.modelSnapshots[id]?.alias}
+                <div key={`${row.modelId}-${row.id}`} className="flex items-center gap-3">
+                  <div className="w-36 shrink-0 truncate text-[12.5px]" title={`${session.modelSnapshots[row.modelId]?.alias} · ${row.label}`}>
+                    {session.modelSnapshots[row.modelId]?.alias}
+                    {row.showConditionLabel && (
+                      <span className="block text-[11px] text-faint">
+                        {row.id === 'thinking-off' ? '关闭思维链' : '默认'}
+                      </span>
+                    )}
                   </div>
                   <div className="flex h-10 flex-1 items-end gap-[3px]">
                     {series.length ? series.map((p) => (
@@ -371,7 +493,7 @@ function PerformanceTab({ session, onOpen }: { session: RunSession; onOpen: (d: 
                     <div className="flex-1" />
                   </div>
                   <div className="w-28 shrink-0 text-right text-[12px] tnum text-muted">
-                    p50 {s?.metrics?.['TTFT p50'] != null ? fmtMs(Number(s.metrics['TTFT p50'])) : '—'}
+                    p50 {row.cells.ttft50?.value != null ? fmtMs(row.cells.ttft50.value) : '—'}
                   </div>
                 </div>
               )
@@ -387,14 +509,32 @@ function PerformanceTab({ session, onOpen }: { session: RunSession; onOpen: (d: 
           {session.modelIds.map((id) => {
             const v = session.results[id]?.checks['perf.voice']
             if (!v) return null
+            const conds = v.conditions?.length
+              ? v.conditions
+              : [{ id: 'default', label: '默认', status: v.status, summary: v.summary, detail: v.detail, grade: v.grade, evidence: [] }]
             return (
               <article key={id} className="card card-pad">
-                <div className="flex items-center justify-between gap-3">
-                  <h3 className="truncate text-sm font-semibold">{session.modelSnapshots[id]?.alias}</h3>
-                  <StatusPill status={v.status} />
+                <h3 className="truncate text-sm font-semibold">{session.modelSnapshots[id]?.alias}</h3>
+                <div className="mt-3 space-y-2.5">
+                  {conds.map((c) => (
+                    <div
+                      key={c.id}
+                      className={classNames(
+                        'rounded-lg border px-3 py-2.5',
+                        c.id === 'thinking-off' ? 'border-info/25 bg-info/5' : 'border-line bg-raised',
+                      )}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        {conds.length > 1 ? <ConditionChip id={c.id} label={c.label} /> : <span />}
+                        <GradeBadge grade={c.grade} />
+                      </div>
+                      {!c.grade && <div className="mt-1.5 text-[12.5px]">{c.summary}</div>}
+                      {c.detail && (
+                        <div className="mt-2 whitespace-pre-line text-[12.5px] leading-relaxed text-muted">{c.detail}</div>
+                      )}
+                    </div>
+                  ))}
                 </div>
-                <div className="mt-2 text-[13px] font-medium">{v.summary}</div>
-                {v.detail && <div className="mt-2 whitespace-pre-line text-[12.5px] leading-relaxed text-muted">{v.detail}</div>}
               </article>
             )
           })}
@@ -536,6 +676,10 @@ function CheckDetail({ session, modelId, checkId }: { session: RunSession; model
   const outcome: CheckOutcome | undefined = session.results[modelId]?.checks[checkId]
   const { settings } = useStore()
   if (!outcome) return <p className="text-[13px] text-muted">没有该项的结果。</p>
+  // 有条件维度时，把各条件的请求样本合并展示
+  const evidenceList = outcome.conditions?.length
+    ? outcome.conditions.flatMap((c) => c.evidence)
+    : outcome.evidence
 
   return (
     <div className="space-y-5">
@@ -548,6 +692,49 @@ function CheckDetail({ session, modelId, checkId }: { session: RunSession; model
         <div className="whitespace-pre-line rounded-lg border border-line bg-raised px-3.5 py-3 text-[12.5px] leading-relaxed text-muted">
           {outcome.detail}
         </div>
+      )}
+
+      {!!outcome.conditions?.length && outcome.conditions.length > 1 && (
+        <section>
+          <h3 className="mb-2 text-[13px] font-semibold">按思维链条件分组</h3>
+          <p className="mb-3 text-[12px] leading-relaxed text-faint">
+            同一测试项在两种条件下各跑了一遍：一遍不干预模型的默认行为，一遍带上关闭思维链的参数。
+          </p>
+          <div className="space-y-3">
+            {outcome.conditions.map((c) => (
+              <div
+                key={c.id}
+                className={classNames(
+                  'rounded-lg border px-3.5 py-3',
+                  c.id === 'thinking-off' ? 'border-info/25 bg-info/5' : 'border-line',
+                )}
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <ConditionChip id={c.id} label={c.label} />
+                    <StatusPill status={c.status} size="sm" />
+                  </div>
+                  <GradeBadge grade={c.grade} />
+                </div>
+                <code className="mt-1.5 block font-mono text-[11px] text-faint">{c.label}</code>
+                <div className="mt-2 text-[12.5px] font-medium">{c.summary}</div>
+                {c.detail && (
+                  <div className="mt-1.5 whitespace-pre-line text-[12px] leading-relaxed text-muted">{c.detail}</div>
+                )}
+                {!!c.metrics && Object.keys(c.metrics).length > 0 && (
+                  <dl className="mt-2.5 grid grid-cols-2 gap-x-4 gap-y-1.5 border-t border-line pt-2.5">
+                    {Object.entries(c.metrics).map(([k, v]) => (
+                      <div key={k} className="flex items-baseline justify-between gap-2">
+                        <dt className="text-[11.5px] text-muted">{k}</dt>
+                        <dd className="text-[12px] font-medium tnum">{formatMetric(k, v)}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
       )}
 
       {!!outcome.variants?.length && (
@@ -567,7 +754,7 @@ function CheckDetail({ session, modelId, checkId }: { session: RunSession; model
         </section>
       )}
 
-      {!!outcome.metrics && Object.keys(outcome.metrics).length > 0 && (
+      {!!outcome.metrics && Object.keys(outcome.metrics).length > 0 && !(outcome.conditions && outcome.conditions.length > 1) && (
         <section>
           <h3 className="mb-2 text-[13px] font-semibold">指标</h3>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-2 rounded-lg border border-line px-3.5 py-3">
@@ -581,7 +768,7 @@ function CheckDetail({ session, modelId, checkId }: { session: RunSession; model
         </section>
       )}
 
-      {!!outcome.series?.length && (
+      {!!outcome.series?.length && !(outcome.conditions && outcome.conditions.length > 1) && (
         <section>
           <h3 className="mb-2 text-[13px] font-semibold">逐轮数据</h3>
           <div className="overflow-x-auto rounded-lg border border-line">
@@ -611,11 +798,11 @@ function CheckDetail({ session, modelId, checkId }: { session: RunSession; model
         </section>
       )}
 
-      {!!outcome.evidence.length && (
+      {!!evidenceList.length && (
         <section>
           <h3 className="mb-2 text-[13px] font-semibold">请求与响应</h3>
           <div className="space-y-2">
-            {outcome.evidence.map((e, i) => (
+            {evidenceList.map((e, i) => (
               <details key={i} className="rounded-lg border border-line" open={settings.expandRaw || i === 0}>
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2">
                   <span className="min-w-0 truncate text-[12.5px] font-medium">{e.label}</span>

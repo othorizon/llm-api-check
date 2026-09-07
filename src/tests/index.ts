@@ -1,4 +1,4 @@
-import type { CheckDef, SuiteId } from '../lib/types'
+import type { CheckDef, RunOptions, SuiteId } from '../lib/types'
 import { PERF_CHECKS } from './performance'
 import { CAPABILITY_CHECKS } from './capability'
 import { MESSAGE_FORMAT_CHECKS } from './msgformat'
@@ -81,14 +81,21 @@ export function displayGroupsOfSuite(suite: SuiteId): GroupMeta[] {
   return GROUPS.filter((g) => g.suite === suite || g.alsoIn?.includes(suite))
 }
 
-/** 估算请求次数，用于成本提示 */
-export function estimateRequests(checkIds: string[], rounds: number): number {
+/**
+ * 估算请求次数，用于成本提示。
+ *
+ * 性能测试开启「关闭思维链」对比时按两组条件计算，属于**上限** ——
+ * 模型本身不输出思维链时对比条件会被自动跳过。
+ */
+export function estimateRequests(checkIds: string[], options: RunOptions): number {
+  const perfConditions = options.perfThinkingCompare ? 2 : 1
   let n = 0
   for (const id of checkIds) {
     const c = CHECK_MAP[id]
     if (!c) continue
-    if (c.id === 'perf.stream') n += rounds
-    else if (c.id === 'perf.nonstream') n += Math.min(rounds, 3)
+    if (c.id === 'perf.stream') n += options.rounds * perfConditions
+    else if (c.id === 'perf.nonstream') n += Math.min(options.rounds, 3) * perfConditions
+    else if (c.id === 'perf.cache') n += 3 * perfConditions
     else n += c.weight ?? 1
   }
   return n

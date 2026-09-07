@@ -27,6 +27,13 @@ function renderBlocks(text: string): ReactNode[] {
       continue
     }
 
+    // 分隔线
+    if (/^\s*(---+|\*\*\*+)\s*$/.test(line)) {
+      out.push(<hr key={key++} className="my-3 border-t border-line" />)
+      i++
+      continue
+    }
+
     // 标题
     const h = line.match(/^(#{1,4})\s+(.*)$/)
     if (h) {

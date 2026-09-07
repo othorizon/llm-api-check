@@ -19,6 +19,24 @@
 
 多轮性能测试会在**提示词最前面注入随机 run-id**，破坏前缀以规避 Prompt Cache，保证测到的是真实冷启动表现。
 
+**思维链条件对比**：推理模型的思考过程会整个计入 TTFT，同一个模型思考开着和关掉，首字时延可以差一个数量级。
+因此上面每一个性能测试项都支持在两种条件下各跑一遍 —— 一遍不干预模型默认行为，一遍带上关闭思维链的参数 ——
+两组结果分别展示，语音适配度也会分别给出评级，直接回答“这个模型关掉思考之后能不能用于语音”。
+
+关闭写法业界没有统一标准，运行参数里可以切换（默认 `thinking: { type: "disabled" }`）：
+
+| 写法 | 常见于 |
+| --- | --- |
+| `thinking: { type: "disabled" }` | 火山方舟豆包、GLM-4.5+ |
+| `enable_thinking: false` | 通义千问 Qwen3、硅基流动 |
+| `reasoning_effort: "minimal"` | OpenAI GPT-5 系列 |
+| `reasoning_effort: "none"` | 部分兼容网关 |
+| `chat_template_kwargs: { enable_thinking: false }` | vLLM / SGLang 自建 |
+| `reasoning: { enabled: false }` | OpenRouter |
+
+模型本身不输出思维链时，对比条件会**自动跳过**，不会浪费额度；选错写法被端点 4xx 拒绝时会明确标出，换一种即可。
+这份写法清单与能力测试里的「关闭思维链的传参方式」共用同一份定义（`src/lib/thinking.ts`），后者会把所有写法逐个试出来。
+
 ### 2. 模型能力测试
 
 - **推理与思维链**：是否回传思维链（`reasoning_content` / `reasoning` / `reasoning_details` / `<think>` 四种通道）；`reasoning_effort` 的 low / medium / high 是否被接受且**真的生效**；关闭思维链的六种写法逐一探测（`reasoning_effort: "minimal"`、`"none"`、`thinking: {type:"disabled"}`、`enable_thinking: false`、`chat_template_kwargs`、`reasoning: {enabled:false}`）。
