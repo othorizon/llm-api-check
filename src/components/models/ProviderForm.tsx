@@ -1,5 +1,7 @@
 import * as React from "react";
-import { Eye, EyeOff, ExternalLink } from "lucide-react";
+import { Eye, EyeOff, ExternalLink, AlertTriangle } from "lucide-react";
+import { LLink } from "@/components/layout/LLink";
+import { addressSpaceOf } from "@/lib/llm/network";
 import { useT } from "@/i18n";
 import { useLocale } from "@/i18n/core";
 import { interpolate } from "@/i18n/core";
@@ -35,6 +37,54 @@ export function CorsBadge({ presetId }: { presetId: string }) {
     <Badge tone={tone} title={t.models.corsHelp}>
       {t.models.corsBadge[cors]}
     </Badge>
+  );
+}
+
+/** Plain-http endpoint that an HTTPS page cannot call directly (loopback is exempt). */
+export function httpBlockKind(baseUrl: string): "local" | "public" | null {
+  try {
+    if (typeof location !== "undefined" && location.protocol !== "https:") return null;
+    const u = new URL(baseUrl);
+    if (u.protocol !== "http:") return null;
+    const space = addressSpaceOf(u.hostname);
+    return space === "loopback" ? null : space;
+  } catch {
+    return null;
+  }
+}
+
+export function HttpBadge({ baseUrl }: { baseUrl: string }) {
+  const t = useT();
+  const kind = httpBlockKind(baseUrl);
+  if (!kind) return null;
+  return (
+    <Badge tone="warning" title={kind === "local" ? t.models.httpWarnLocal : t.models.httpWarnPublic}>
+      <AlertTriangle className="h-3 w-3" /> {t.models.httpBadge}
+    </Badge>
+  );
+}
+
+export function HttpWarning({ baseUrl }: { baseUrl: string }) {
+  const t = useT();
+  const kind = httpBlockKind(baseUrl);
+  if (!kind) return null;
+  return (
+    <div className="mt-2 rounded-md border border-warning/50 bg-warning/10 px-3 py-2 text-xs leading-5 text-ink-2">
+      <div className="flex items-start gap-1.5">
+        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning-ink" />
+        <div>
+          <p className="font-medium text-ink">{kind === "local" ? t.models.httpWarnLocal : t.models.httpWarnPublic}</p>
+          <ul className="mt-1 list-disc space-y-0.5 pl-4">
+            {t.models.httpOptions.map((o) => (
+              <li key={o}>{o}</li>
+            ))}
+          </ul>
+          <LLink to="/docs/providers#http" className="mt-1 inline-block text-accent-ink underline underline-offset-2">
+            {t.common.learnMore}
+          </LLink>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -138,6 +188,7 @@ export function ProviderForm({ open, onOpenChange, provider, onSaved }: { open: 
         {preset.notes ? <p className="rounded-md bg-surface-2 px-3 py-2 text-xs leading-5 text-ink-2">{locale === "zh" ? preset.notes.zh : preset.notes.en}</p> : null}
         <Field label={t.models.baseUrl} hint={interpolate(t.models.baseUrlHint, { baseUrl: "{baseUrl}" })} error={baseUrl && !valid ? "http(s)://…" : undefined}>
           <Input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="https://api.example.com/v1" spellCheck={false} autoComplete="off" />
+          <HttpWarning baseUrl={baseUrl} />
           {preset.altBaseUrls?.length ? (
             <div className="mt-1.5 flex flex-wrap gap-1.5">
               {[{ label: "Default", url: preset.baseUrl }, ...preset.altBaseUrls].map((a) => (

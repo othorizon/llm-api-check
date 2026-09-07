@@ -1,3 +1,5 @@
+import { addressSpaceOf, isMixedContent } from "./network";
+
 /** Classified errors so the UI can give actionable guidance. */
 export type LlmErrorKind =
   | "network" // fetch threw: CORS, DNS, offline, mixed content
@@ -62,12 +64,16 @@ export function classifyStatus(status: number): LlmErrorKind {
   return "unknown";
 }
 
-export function toLlmError(e: unknown): LlmError {
+export function toLlmError(e: unknown, context: { url?: string } = {}): LlmError {
   if (e instanceof LlmError) return e;
   if (e && typeof e === "object" && (e as any).name === "AbortError") return new LlmError("aborted", "Request aborted", { cause: e });
   if (e instanceof TypeError) {
     // fetch() rejects with TypeError for CORS, DNS, offline, mixed content, blocked requests.
     const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+    if (!offline && context.url && isMixedContent(context.url)) {
+      const local = addressSpaceOf(new URL(context.url).hostname) === "local";
+      return new LlmError("network", local ? "Blocked by the browser: plain http:// local-network API called from an HTTPS page (mixed content / local network access)." : "Blocked by the browser: plain http:// API called from an HTTPS page (mixed content).", { cause: e, code: local ? "mixed_content_local" : "mixed_content" });
+    }
     return new LlmError("network", offline ? "You appear to be offline." : "Network error: the browser could not reach the API (likely CORS, DNS, or a blocked/mixed-content request).", { cause: e });
   }
   const msg = e instanceof Error ? e.message : String(e);

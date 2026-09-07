@@ -1,6 +1,7 @@
 import { StreamAccumulator, parseNonStreamResponse } from "./accumulate";
 import { LlmError, classifyStatus, extractProviderMessage, toLlmError, mentionsParam } from "./errors";
 import { iterateSse } from "./sse";
+import { fetchWithHints } from "./network";
 import type { ChatRequest, CompletionResult, Timing } from "./types";
 
 export interface ClientTarget {
@@ -80,10 +81,10 @@ export async function chatCompletion(target: ClientTarget, request: ChatRequest,
     try {
       let res: Response;
       try {
-        res = await fetch(url, { method: "POST", headers: buildHeaders(target), body: JSON.stringify(req), signal: controller.signal, mode: "cors", credentials: "omit", cache: "no-store" });
+        res = await fetchWithHints(url, { method: "POST", headers: buildHeaders(target), body: JSON.stringify(req), signal: controller.signal, mode: "cors", credentials: "omit", cache: "no-store" });
       } catch (e) {
         if (controller.signal.aborted && (controller.signal.reason as any)?.name === "TimeoutError") throw new LlmError("timeout", `Request timed out after ${timeout} ms`);
-        throw toLlmError(e);
+        throw toLlmError(e, { url });
       }
       timing.headersMs = performance.now() - t0;
       if (!res.ok) {
@@ -172,9 +173,9 @@ export async function listModels(target: ClientTarget, signal?: AbortSignal): Pr
   const url = joinUrl(target.baseUrl, "models");
   let res: Response;
   try {
-    res = await fetch(url, { headers: buildHeaders(target), signal, mode: "cors", credentials: "omit" });
+    res = await fetchWithHints(url, { headers: buildHeaders(target), signal, mode: "cors", credentials: "omit" });
   } catch (e) {
-    throw toLlmError(e);
+    throw toLlmError(e, { url });
   }
   if (!res.ok) {
     const body = await readErrorBody(res);

@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Popover, Tip } from "@/components/ui/Overlay";
 import { Switch } from "@/components/ui/Toggle";
-import { ProviderForm, CorsBadge } from "@/components/models/ProviderForm";
+import { ProviderForm, CorsBadge, HttpBadge } from "@/components/models/ProviderForm";
 import { ModelForm } from "@/components/models/ModelForm";
 import { providerLabel, useProviders } from "@/lib/store/providers";
 import { setSecretsStorageKind, useSecrets } from "@/lib/store/secrets";
@@ -23,7 +23,8 @@ import { downloadText } from "@/lib/utils/download";
 import { useRun } from "@/lib/store/run";
 
 export function describeError(err: LlmError, t: ReturnType<typeof useT>): string {
-  const base = interpolate((t.errors as Record<string, string>)[err.kind] ?? t.errors.unknown, { status: err.status ?? "" });
+  const errors = t.errors as Record<string, string>;
+  const base = interpolate((err.code && errors[err.code]) || errors[err.kind] || t.errors.unknown, { status: err.status ?? "" });
   return err.providerMessage ? `${base} ${err.providerMessage}` : base;
 }
 
@@ -183,6 +184,7 @@ function ModelsWorkbench() {
                               <KeyRound className="h-3 w-3" /> {hasKey ? t.models.keySet : t.models.keyMissing}
                             </Badge>
                             <CorsBadge presetId={p.presetId} />
+                            <HttpBadge baseUrl={p.baseUrl} />
                           </div>
                         </div>
                         <div className="flex shrink-0 items-center gap-0.5">
