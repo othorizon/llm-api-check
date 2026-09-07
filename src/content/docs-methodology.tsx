@@ -78,6 +78,10 @@ export function MethodologyContent({ locale }: { locale: Locale }) {
           命中与否以服务商在 usage 中返回的缓存字段为准：<code>prompt_tokens_details.cached_tokens</code>（OpenAI、通义千问、火山方舟、Kimi 等）、<code>prompt_cache_hit_tokens</code>（DeepSeek）、<code>cache_read_input_tokens</code>（Anthropic 风格网关）。表格中的“缓存命中”列显示命中 token 占输入 token 的比例；不命中组若出现命中会以警示色标出。多数服务商只缓存达到一定长度的前缀（OpenAI ≥ 1,024 tokens），所以测命中时请选择“长”输入长度。
         </p>
         <p>运行顺序为<strong>跨模型轮转</strong>（A、B、C、A、B、C…），以减少时段性波动对某一个模型的偏向。场景评分默认基于不命中组；只跑命中组时会在评分依据中注明。</p>
+        <h2 id="custom">自定义提示词</h2>
+        <p>
+          除了自动生成的短 / 中 / 长提示词，也可以粘贴你自己的提示词。它会原样作为 user 消息发送；system 消息只有一行，用来放不命中模式的随机时间戳或命中模式的固定标记，因此两种缓存条件对自定义提示词同样成立。页面会实时显示估算的 token 数（CJK 约 1 字 1 token，拉丁文约 4 字符 1 token），命中缓存模式下不足 1,024 tokens 会给出提示。
+        </p>
         <h2 id="reasoning">关闭思维链</h2>
         <p>
           推理模型在输出可见内容前会先“思考”，这段时间会算进 TTFT。性能测试默认随每个请求发送 <code>thinking: {"{ type: \"disabled\" }"}</code>（火山方舟、智谱、Kimi、DeepSeek 等使用的写法），你可以切换为 <code>reasoning_effort: "none"</code>、<code>enable_thinking: false</code> 等其他写法，或选择不发送。能力测试中的“关闭（或开启）推理”一项会告诉你某个模型到底认哪一种写法；性能页会在选项下方直接列出已验证的结果。若服务商以 HTTP 400 拒绝该参数，请求会去掉参数重发，并在结果中标注受影响的模型。
@@ -208,6 +212,10 @@ export function MethodologyContent({ locale }: { locale: Locale }) {
         Whether a request hit is read from the provider's usage fields: <code>prompt_tokens_details.cached_tokens</code> (OpenAI, Qwen, Ark, Kimi…), <code>prompt_cache_hit_tokens</code> (DeepSeek), <code>cache_read_input_tokens</code> (Anthropic-style gateways). The “Cached” column shows cached tokens as a share of prompt tokens; a hit inside the miss block is flagged in a warning colour. Most providers only cache prefixes above a minimum length (OpenAI ≥ 1,024 tokens), so pick the long input size when measuring hits.
       </p>
       <p>Requests are scheduled <strong>round-robin across models</strong> (A, B, C, A, B, C…) so that time-of-day variance does not favour one model. Scenario scores use the cache-miss runs; when only the hit block was run, the score notes say so.</p>
+      <h2 id="custom">Custom prompts</h2>
+      <p>
+        Instead of the generated short / medium / long prompts you can paste your own. It is sent verbatim as the user message; a one-line system message carries the per-request timestamp (cache miss) or the fixed session token (cache hit), so both cache conditions work for custom prompts too. The page shows a live token estimate (≈1 token per CJK character, ≈4 Latin characters per token) and warns when a cache-hit run uses fewer than 1,024 tokens.
+      </p>
       <h2 id="reasoning">Disabling reasoning</h2>
       <p>
         Reasoning models “think” before their first visible token, and that time lands in TTFT. By default the performance test sends <code>thinking: {"{ type: \"disabled\" }"}</code> (the dialect used by Volcengine Ark, Zhipu, Kimi, DeepSeek and others) with every request; you can switch to <code>reasoning_effort: "none"</code>, <code>enable_thinking: false</code> or any other dialect, or send nothing. The “turn reasoning off (or on)” probe in the capability test tells you which dialect a model honours, and the performance page lists those findings under the selector. If a provider rejects the parameter with HTTP 400, the request is re-sent without it and the affected models are flagged in the results.

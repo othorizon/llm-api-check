@@ -102,6 +102,8 @@ export function filler(rng: () => number, lang: PromptLang, tokens: number): str
 }
 
 const SIZE_TOKENS: Record<PromptSize, number> = { short: 0, medium: 500, long: 2000 };
+/** Approximate total input size of each generated preset (for hints in the UI). */
+export const APPROX_INPUT_TOKENS: Record<PromptSize, number> = { short: 60, medium: 600, long: 2100 };
 
 export interface PerfPrompt {
   messages: ChatMessage[];
@@ -143,6 +145,22 @@ export function buildPerfPrompt(rng: () => number, lang: PromptLang, size: Promp
     { role: "user", content: user },
   ];
   return { messages, topic, nonce: n, approxInputTokens: estimateTokens(system) + estimateTokens(user) + 8 };
+}
+
+/**
+ * Wraps a user-supplied prompt for a performance run. The text is sent verbatim as the
+ * user message; a one-line system message carries the per-request random stamp
+ * (cache-miss) or the fixed session token (cache-hit).
+ */
+export function buildCustomPrompt(rng: () => number, text: string, opts: PerfPromptOptions): PerfPrompt {
+  const n = nonce(rng);
+  const stamp = opts.randomizeEveryRequest ? `${new Date().toISOString()} ${n}` : n;
+  const system = `Session ${stamp}.`;
+  const messages: ChatMessage[] = [
+    { role: "system", content: system },
+    { role: "user", content: text },
+  ];
+  return { messages, topic: "custom", nonce: n, approxInputTokens: estimateTokens(system) + estimateTokens(text) + 8 };
 }
 
 /**

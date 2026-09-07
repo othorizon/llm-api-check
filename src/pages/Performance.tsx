@@ -8,13 +8,16 @@ import { LLink } from "@/components/layout/LLink";
 import { SectionTitle, Progress, SeriesDot } from "@/components/ui/Misc";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
-import { Field, Input, Select } from "@/components/ui/Field";
+import { Field, Input, Select, Textarea } from "@/components/ui/Field";
+import { Tabs } from "@/components/ui/Misc";
+import { estimateTokens } from "@/lib/llm/tokens";
+import { APPROX_INPUT_TOKENS } from "@/lib/perf/prompts";
 import { CheckRow } from "@/components/ui/Toggle";
 import { Badge } from "@/components/ui/Badge";
 import { ModelPicker } from "@/components/performance/ModelPicker";
 import { PerfSummaryTable, ScenarioMatrix, PerfCharts, RunLog, EstimatedNote, CacheComparisonList, ConditionBadge } from "@/components/performance/PerfResults";
 import { SessionActions } from "@/components/results/SessionActions";
-import { DEFAULT_PERF_CONFIG, PERF_CONFIG_VERSION, type CacheMode, type PerfConfig, type PerfSession } from "@/lib/perf/types";
+import { DEFAULT_PERF_CONFIG, PERF_CONFIG_VERSION, type CacheMode, type PerfConfig, type PerfSession, type PromptSource } from "@/lib/perf/types";
 import { requestsPerModel } from "@/lib/perf/runner";
 import { REASONING_DIALECTS } from "@/lib/caps/reasoning-dialects";
 import type { CapSession } from "@/lib/caps/types";
@@ -170,7 +173,7 @@ export function PerfSessionView({ session, showActions = true }: { session: Perf
           <div>
             <CardTitle>{t.perf.summary}</CardTitle>
             <CardDescription>
-              {fmtDate(session.createdAt, locale === "zh" ? "zh-CN" : "en")} · {t.perf.cacheModes[cfg.cacheMode].name} · {t.perf.promptSizes[cfg.promptSize]} · {t.perf.promptLangs[cfg.promptLang]} · {cfg.runs} {t.common.runs} · max {cfg.maxTokens} {t.common.tokens} · {t.perf.reasoningOff}: <span className="mono">{dialectLabel(cfg.disableReasoning, t.perf.reasoningOffNone)}</span>
+              {fmtDate(session.createdAt, locale === "zh" ? "zh-CN" : "en")} · {t.perf.cacheModes[cfg.cacheMode].name} · {cfg.promptSource === "custom" ? `${t.perf.promptCustom} (≈ ${estimateTokens(cfg.customPrompt)} ${t.common.tokens})` : `${t.perf.promptSizes[cfg.promptSize]} · ${t.perf.promptLangs[cfg.promptLang]}`} · {cfg.runs} {t.common.runs} · max {cfg.maxTokens} {t.common.tokens} · {t.perf.reasoningOff}: <span className="mono">{dialectLabel(cfg.disableReasoning, t.perf.reasoningOffNone)}</span>
               {session.status === "aborted" ? ` · ${t.common.aborted}` : ""}
             </CardDescription>
           </div>
@@ -224,6 +227,10 @@ function PerfWorkbench() {
   const perModel = requestsPerModel(config);
   const anyMode = config.modes.stream || config.modes.nonStream;
   const hitInvolved = config.cacheMode !== "miss";
+  const customTokens = estimateTokens(config.customPrompt);
+  const promptTokens = config.promptSource === "custom" ? customTokens : APPROX_INPUT_TOKENS[config.promptSize];
+  const promptMissing = config.promptSource === "custom" && config.customPrompt.trim().length === 0;
+  const cacheTooShort = hitInvolved && promptTokens < 1024;
 
   const onStart = () => {
     const id = start(config, selected);
@@ -261,11 +268,6 @@ function PerfWorkbench() {
                   <RadioCard key={m} name="cacheMode" checked={config.cacheMode === m} onSelect={() => update({ cacheMode: m })} label={t.perf.cacheModes[m].name} desc={t.perf.cacheModes[m].desc} disabled={running} />
                 ))}
               </div>
-              {hitInvolved && config.promptSize === "short" ? (
-                <p className="mt-2 flex items-start gap-1.5 text-xs leading-5 text-warning-ink">
-                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {t.perf.cacheSizeHint}
-                </p>
-              ) : null}
             </div>
             <Field label={t.perf.reasoningOff} hint={t.perf.reasoningOffHint}>
               <Select value={config.disableReasoning ?? ""} onChange={(e) => update({ disableReasoning: e.target.value || null })} disabled={running} className="mono text-xs">
@@ -278,22 +280,51 @@ function PerfWorkbench() {
               </Select>
               <KnownDialects modelIds={selected} />
             </Field>
+            <div>
+              <div className="mb-1.5 flex items-center justify-between gap-2">
+                <span className="text-[13px] font-medium">{t.perf.prompt}</span>
+                <Tabs
+                  value={config.promptSource}
+                  onValueChange={(v) => !running && update({ promptSource: v as PromptSource })}
+                  items={[
+                    { value: "generated", label: t.perf.promptGenerated },
+                    { value: "custom", label: t.perf.promptCustom },
+                  ]}
+                />
+              </div>
+              {config.promptSource === "custom" ? (
+                <Field label={<span className="sr-only">{t.perf.promptCustom}</span>} hint={t.perf.promptCustomHint} error={promptMissing ? t.perf.promptEmpty : undefined}>
+                  <Textarea value={config.customPrompt} onChange={(e) => update({ customPrompt: e.target.value })} placeholder={t.perf.promptCustomPlaceholder} rows={6} disabled={running} spellCheck={false} className="text-xs leading-5" />
+                  <div className="tnum mt-1 text-right text-xs text-muted" aria-live="polite">
+                    {interpolate(t.perf.promptStats, { tokens: customTokens.toLocaleString(), chars: config.customPrompt.length.toLocaleString() })}
+                  </div>
+                </Field>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label={t.perf.promptSize}>
+                    <Select value={config.promptSize} onChange={(e) => update({ promptSize: e.target.value as PerfConfig["promptSize"] })} disabled={running}>
+                      {(["short", "medium", "long"] as const).map((s) => (
+                        <option key={s} value={s}>
+                          {t.perf.promptSizes[s]}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                  <Field label={t.perf.promptLang}>
+                    <Select value={config.promptLang} onChange={(e) => update({ promptLang: e.target.value as PerfConfig["promptLang"] })} disabled={running}>
+                      <option value="en">{t.perf.promptLangs.en}</option>
+                      <option value="zh">{t.perf.promptLangs.zh}</option>
+                    </Select>
+                  </Field>
+                </div>
+              )}
+              {cacheTooShort ? (
+                <p className="mt-2 flex items-start gap-1.5 text-xs leading-5 text-warning-ink">
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {interpolate(t.perf.cacheSizeHint, { tokens: promptTokens })}
+                </p>
+              ) : null}
+            </div>
             <div className="grid grid-cols-2 gap-3">
-              <Field label={t.perf.promptSize}>
-                <Select value={config.promptSize} onChange={(e) => update({ promptSize: e.target.value as PerfConfig["promptSize"] })} disabled={running}>
-                  {(["short", "medium", "long"] as const).map((s) => (
-                    <option key={s} value={s}>
-                      {t.perf.promptSizes[s]}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <Field label={t.perf.promptLang}>
-                <Select value={config.promptLang} onChange={(e) => update({ promptLang: e.target.value as PerfConfig["promptLang"] })} disabled={running}>
-                  <option value="en">{t.perf.promptLangs.en}</option>
-                  <option value="zh">{t.perf.promptLangs.zh}</option>
-                </Select>
-              </Field>
               <Field label={t.perf.runs} hint={t.perf.runsHint}>
                 <Input type="number" min={1} max={30} value={config.runs} onChange={(e) => update({ runs: num(e.target.value, 1, 30, 3) })} disabled={running} />
               </Field>
@@ -319,7 +350,7 @@ function PerfWorkbench() {
                 <Square className="h-4 w-4" /> {t.perf.stop}
               </Button>
             ) : (
-              <Button variant="primary" className="w-full" onClick={onStart} disabled={selected.length === 0 || !anyMode}>
+              <Button variant="primary" className="w-full" onClick={onStart} disabled={selected.length === 0 || !anyMode || promptMissing}>
                 <Play className="h-4 w-4" /> {t.perf.start}
               </Button>
             )}

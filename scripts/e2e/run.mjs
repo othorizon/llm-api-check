@@ -81,6 +81,14 @@ await page.waitForSelector("text=Running…", { state: "detached", timeout: 1800
 await page.waitForTimeout(500);
 await shot("07-perf-results");
 log("performance done");
+// custom prompt: counter + cache-length hint, no run
+await page.getByRole("tab", { name: "Custom" }).click();
+await page.getByPlaceholder(/Paste the prompt/).fill("Explain, in about two hundred words, why the sky is blue. " .repeat(6));
+await page.waitForSelector("text=/≈ [0-9,]+ tokens · [0-9,]+ characters/");
+await page.waitForSelector("text=/This prompt is about \\d+ tokens/");
+await page.screenshot({ path: `${OUT}/07b-perf-custom-prompt.png`, clip: { x: 0, y: 0, width: 1360, height: 1500 } });
+await page.getByRole("tab", { name: "Generated" }).click();
+log("custom prompt ui ok");
 
 // 4. Capabilities test (3 models)
 await page.goto(`${BASE}/en/capabilities`);

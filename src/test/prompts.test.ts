@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildCachePrefix, buildPerfPrompt, cacheQuestion, filler, makeRng } from "@/lib/perf/prompts";
+import { buildCachePrefix, buildCustomPrompt, buildPerfPrompt, cacheQuestion, filler, makeRng } from "@/lib/perf/prompts";
 import { estimateTokens } from "@/lib/llm/tokens";
 
 describe("prompts", () => {
@@ -21,6 +21,15 @@ describe("prompts", () => {
     expect(estimateTokens(en)).toBeLessThan(2400);
     expect(estimateTokens(zh)).toBeGreaterThan(1800);
     expect(estimateTokens(zh)).toBeLessThan(2400);
+  });
+  it("wraps a custom prompt with a random stamp (miss) or a fixed token (hit)", () => {
+    const miss = buildCustomPrompt(makeRng(4), "Summarise the plot of Hamlet in three sentences.", { randomizeEveryRequest: true });
+    expect(miss.messages[1]).toEqual({ role: "user", content: "Summarise the plot of Hamlet in three sentences." });
+    expect(String(miss.messages[0].content)).toMatch(/^Session \d{4}-\d{2}-\d{2}T/);
+    const h1 = buildCustomPrompt(makeRng(4), "x", { randomizeEveryRequest: false });
+    const h2 = buildCustomPrompt(makeRng(4), "x", { randomizeEveryRequest: false });
+    expect(h1.messages).toEqual(h2.messages);
+    expect(miss.approxInputTokens).toBeGreaterThan(10);
   });
   it("cache prefix is fixed per session while questions vary", () => {
     const rng = makeRng(9);

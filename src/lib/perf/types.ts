@@ -8,11 +8,16 @@ export type CacheMode = "miss" | "hit" | "compare";
 export type PromptSize = "short" | "medium" | "long";
 export type PromptLang = "en" | "zh";
 
+export type PromptSource = "generated" | "custom";
+
 export interface PerfConfig {
   /** Measured runs per (mode × cache condition). */
   runs: number;
   modes: { stream: boolean; nonStream: boolean };
   cacheMode: CacheMode;
+  /** generated = random topic/filler of the chosen size; custom = the user's own text, sent as the user message. */
+  promptSource: PromptSource;
+  customPrompt: string;
   promptSize: PromptSize;
   promptLang: PromptLang;
   maxTokens: number;
@@ -30,6 +35,8 @@ export const DEFAULT_PERF_CONFIG: PerfConfig = {
   runs: 3,
   modes: { stream: true, nonStream: true },
   cacheMode: "miss",
+  promptSource: "generated",
+  customPrompt: "",
   promptSize: "short",
   promptLang: "en",
   maxTokens: 256,

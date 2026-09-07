@@ -5,7 +5,7 @@ import { LlmError, mentionsParam, toLlmError } from "@/lib/llm/errors";
 import { REASONING_DIALECTS } from "@/lib/caps/reasoning-dialects";
 import { sendBound, type BoundModel } from "@/lib/llm/model-client";
 import { uid } from "@/lib/utils/id";
-import { buildPerfPrompt, makeRng, randomSeed } from "./prompts";
+import { buildCustomPrompt, buildPerfPrompt, makeRng, randomSeed } from "./prompts";
 import { computeScores } from "./scoring";
 import { median, summarize } from "./stats";
 import type { CacheComparison, CacheCondition, ConditionStats, ModeStats, PerfConfig, PerfModelResult, RunMode, RunSample } from "./types";
@@ -204,6 +204,8 @@ export async function runPerformance(input: PerfRunInput): Promise<Record<string
   /** In "hit" mode every request of a model reuses exactly the same messages. */
   const fixedPrompt = new Map<string, ChatMessage[]>();
   const targetWords = Math.round(config.maxTokens * (config.promptLang === "zh" ? 1.2 : 0.9));
+  const custom = config.promptSource === "custom" ? config.customPrompt.trim() : "";
+  const makePrompt = (randomizeEveryRequest: boolean) => (custom ? buildCustomPrompt(rng, custom, { randomizeEveryRequest }) : buildPerfPrompt(rng, config.promptLang, config.promptSize, targetWords, { randomizeEveryRequest }));
   const extras = reasoningParams(config);
   /** Models whose provider rejected the reasoning parameters: send without them from then on. */
   const droppedFor = new Set<string>();
@@ -230,12 +232,12 @@ export async function runPerformance(input: PerfRunInput): Promise<Record<string
     if (job.cache === "hit") {
       let fixed = fixedPrompt.get(modelId);
       if (!fixed) {
-        fixed = buildPerfPrompt(rng, config.promptLang, config.promptSize, targetWords, { randomizeEveryRequest: false }).messages;
+        fixed = makePrompt(false).messages;
         fixedPrompt.set(modelId, fixed);
       }
       messages = fixed;
     } else {
-      messages = buildPerfPrompt(rng, config.promptLang, config.promptSize, targetWords, { randomizeEveryRequest: true }).messages;
+      messages = makePrompt(true).messages;
     }
     const stream = job.mode === "stream";
     let lastLive = 0;

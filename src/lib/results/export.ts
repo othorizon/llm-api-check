@@ -6,6 +6,7 @@ import type { Session } from "@/lib/store/results";
 import { fmtMs, fmtNum, fmtPct } from "@/lib/utils/format";
 import { SUITE_ORDER } from "@/lib/caps/registry";
 import { REASONING_DIALECTS } from "@/lib/caps/reasoning-dialects";
+import { estimateTokens } from "@/lib/llm/tokens";
 
 function csvCell(v: unknown): string {
   const s = v == null ? "" : String(v);
@@ -50,7 +51,8 @@ export function perfToMarkdown(s: PerfSession, dict: Dict): string {
   lines.push(`# ${dict.results.reportTitle} · ${dict.perf.title}`);
   lines.push("");
   const dialect = s.config.disableReasoning ? (REASONING_DIALECTS.find((d) => d.id === s.config.disableReasoning)?.label ?? s.config.disableReasoning) : dict.perf.reasoningOffNone;
-  lines.push(`${new Date(s.createdAt).toISOString()} · ${dict.perf.cacheModes[s.config.cacheMode].name} · ${dict.perf.promptSizes[s.config.promptSize]} · ${dict.perf.promptLangs[s.config.promptLang]} · ${s.config.runs} ${dict.common.runs} · max ${s.config.maxTokens} tokens · ${dict.perf.reasoningOff}: ${dialect}`);
+  const promptDesc = s.config.promptSource === "custom" ? `${dict.perf.promptCustom} (≈ ${estimateTokens(s.config.customPrompt)} tokens)` : `${dict.perf.promptSizes[s.config.promptSize]} · ${dict.perf.promptLangs[s.config.promptLang]}`;
+  lines.push(`${new Date(s.createdAt).toISOString()} · ${dict.perf.cacheModes[s.config.cacheMode].name} · ${promptDesc} · ${s.config.runs} ${dict.common.runs} · max ${s.config.maxTokens} tokens · ${dict.perf.reasoningOff}: ${dialect}`);
   lines.push("");
   const conditions: ("miss" | "hit")[] = s.config.cacheMode === "compare" ? ["miss", "hit"] : [s.config.cacheMode];
   const cols = [dict.common.model, dict.perf.cacheMode, `${m.ttfc} p50`, `${m.ttfc} p95`, `${m.ttft} p50`, `${m.decodeTps} p50`, `${m.latency} (${m.nonStreaming}) p50`, `${m.e2eTps} p50`, m.cachedTokens, m.success];
