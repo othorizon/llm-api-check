@@ -12,5 +12,8 @@ const app = (
     </BrowserRouter>
   </React.StrictMode>
 );
-if (container.hasChildNodes()) hydrateRoot(container, app);
+// Prerendered pages (see scripts/prerender.mjs) carry the app markup and are hydrated; in dev Vite
+// serves index.html as is, where the root only holds the <!--app-html--> placeholder comment, so
+// hydrating there would only produce a mismatch and a second render.
+if (container.firstElementChild) hydrateRoot(container, app);
 else createRoot(container).render(app);
