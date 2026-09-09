@@ -1,3 +1,4 @@
+import * as React from "react";
 import { useT } from "@/i18n";
 import { providerLabel, useProviders } from "@/lib/store/providers";
 import { useSecrets } from "@/lib/store/secrets";
@@ -8,6 +9,43 @@ import { Button } from "@/components/ui/Button";
 import { LLink } from "@/components/layout/LLink";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { SeriesDot } from "@/components/ui/Misc";
+
+/**
+ * Model ids selected on a page, remembered in localStorage under `storageKey` so a reload keeps the
+ * choice. Ids of models that no longer exist are dropped; when nothing usable is stored, the first
+ * `fallback` models are selected.
+ */
+export function useModelSelection(storageKey: string, fallback: number) {
+  const models = useProviders((s) => s.models);
+  const [selected, setSelectedState] = React.useState<string[]>(() => {
+    const ids = models.map((m) => m.id);
+    try {
+      const raw = localStorage.getItem(storageKey);
+      const stored: unknown = raw ? JSON.parse(raw) : null;
+      if (Array.isArray(stored)) {
+        const kept = stored.filter((id): id is string => typeof id === "string" && ids.includes(id));
+        if (kept.length || stored.length === 0) return kept;
+      }
+    } catch {
+      /* ignore */
+    }
+    return ids.slice(0, fallback);
+  });
+  const setSelected = React.useCallback(
+    (ids: string[]) => {
+      setSelectedState(ids);
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(ids));
+      } catch {
+        /* ignore */
+      }
+    },
+    [storageKey],
+  );
+  // Drop models deleted meanwhile (keeps the array identity when nothing changed).
+  React.useEffect(() => setSelectedState((s) => (s.every((id) => models.some((m) => m.id === id)) ? s : s.filter((id) => models.some((m) => m.id === id)))), [models]);
+  return [selected, setSelected] as const;
+}
 
 export function ModelPicker({ selected, onChange, disabled }: { selected: string[]; onChange: (ids: string[]) => void; disabled?: boolean }) {
   const t = useT();

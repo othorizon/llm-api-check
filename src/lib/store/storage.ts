@@ -60,11 +60,16 @@ export function storageUsage(): { bytes: number; keys: string[] } {
   }
 }
 
+/** Remove everything this app stored (the stores above plus per-page config and model selections). */
 export function clearAllAppData() {
   try {
-    for (const k of Object.values(STORAGE_KEYS)) {
-      localStorage.removeItem(k);
-      sessionStorage.removeItem(k);
+    for (const store of [localStorage, sessionStorage]) {
+      const keys: string[] = [];
+      for (let i = 0; i < store.length; i++) {
+        const k = store.key(i);
+        if (k && k.startsWith("wlcu:")) keys.push(k);
+      }
+      for (const k of keys) store.removeItem(k);
     }
   } catch {
     /* ignore */

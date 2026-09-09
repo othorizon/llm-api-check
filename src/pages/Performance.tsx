@@ -14,7 +14,7 @@ import { estimateTokens } from "@/lib/llm/tokens";
 import { APPROX_INPUT_TOKENS } from "@/lib/perf/prompts";
 import { CheckRow } from "@/components/ui/Toggle";
 import { Badge } from "@/components/ui/Badge";
-import { ModelPicker } from "@/components/performance/ModelPicker";
+import { ModelPicker, useModelSelection } from "@/components/performance/ModelPicker";
 import { PerfSummaryTable, ScenarioMatrix, PerfCharts, RunLog, EstimatedNote, CacheComparisonList, ConditionBadge } from "@/components/performance/PerfResults";
 import { SessionActions } from "@/components/results/SessionActions";
 import { DEFAULT_PERF_CONFIG, PERF_CONFIG_VERSION, type CacheMode, type PerfConfig, type PerfSession, type PromptSource } from "@/lib/perf/types";
@@ -28,6 +28,7 @@ import { fmtDate } from "@/lib/utils/format";
 import { cn } from "@/lib/utils/cn";
 
 const CONFIG_KEY = "wlcu:perf-config";
+const MODELS_KEY = "wlcu:perf-models";
 
 function useLocalConfig() {
   const [config, setConfig] = React.useState<PerfConfig>(() => {
@@ -219,7 +220,6 @@ export function PerfSessionView({ session, showActions = true }: { session: Perf
 
 function PerfWorkbench() {
   const t = useT();
-  const models = useProviders((s) => s.models);
   const sessions = useResults((s) => s.sessions);
   const active = useRun((s) => s.active);
   const start = useRun((s) => s.startPerformance);
@@ -228,9 +228,8 @@ function PerfWorkbench() {
   const locale = useLocale();
   const pageLang: PerfConfig["promptLang"] = locale === "zh" ? "zh" : "en";
   const effective: PerfConfig = { ...config, promptLang: config.promptLangAuto ? pageLang : config.promptLang };
-  const [selected, setSelected] = React.useState<string[]>(() => models.map((m) => m.id).slice(0, 3));
+  const [selected, setSelected] = useModelSelection(MODELS_KEY, 3);
   const [sessionId, setSessionId] = React.useState<string | null>(params.get("session"));
-  React.useEffect(() => setSelected((s) => s.filter((id) => models.some((m) => m.id === id))), [models]);
 
   const perfSessions = sessions.filter((s): s is PerfSession => s.kind === "performance");
   const session = (sessionId ? perfSessions.find((s) => s.id === sessionId) : null) ?? perfSessions[0] ?? null;

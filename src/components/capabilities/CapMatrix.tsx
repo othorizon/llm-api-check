@@ -1,4 +1,5 @@
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { useMsg, useT, testInfo } from "@/i18n";
 import { useLocale } from "@/i18n/core";
 import type { CapOutcome, CapSession, CapSuiteId } from "@/lib/caps/types";
@@ -155,6 +156,85 @@ function suitesInSession(session: CapSession): CapSuiteId[] {
   return SUITE_ORDER.filter((s) => present.has(s));
 }
 
+/** Bottom edge of the (sticky) site header: the line a floating table header must sit under. */
+function stickyTop() {
+  const header = document.querySelector("header");
+  return header ? Math.max(0, header.getBoundingClientRect().bottom) : 0;
+}
+
+interface FloatingHeader {
+  top: number;
+  left: number;
+  width: number;
+  tableWidth: number;
+  cols: number[];
+}
+
+function sameHeader(a: FloatingHeader, b: FloatingHeader) {
+  const eq = (x: number, y: number) => Math.abs(x - y) < 0.5;
+  return eq(a.top, b.top) && eq(a.left, b.left) && eq(a.width, b.width) && eq(a.tableWidth, b.tableWidth) && a.cols.length === b.cols.length && a.cols.every((c, i) => eq(c, b.cols[i]));
+}
+
+/**
+ * The matrix scrolls horizontally inside its own container, which is what keeps the test column
+ * pinned to the left — but it also stops `position: sticky` on the header row from pinning to the
+ * page. So once the real header row scrolls under the site header, a fixed clone with the same
+ * column widths is shown instead, following the table's horizontal scroll.
+ */
+function useFloatingHeader(wrapRef: React.RefObject<HTMLDivElement | null>, theadRef: React.RefObject<HTMLTableSectionElement | null>) {
+  const [floating, setFloating] = React.useState<FloatingHeader | null>(null);
+  const cloneRef = React.useRef<HTMLDivElement>(null);
+  const scheduleRef = React.useRef<() => void>(() => {});
+  React.useEffect(() => {
+    const wrap = wrapRef.current;
+    const thead = theadRef.current;
+    if (!wrap || !thead) return;
+    let raf = 0;
+    const measure = () => {
+      raf = 0;
+      const top = stickyTop();
+      const w = wrap.getBoundingClientRect();
+      const h = thead.getBoundingClientRect();
+      if (!(h.top < top && w.bottom > top + h.height)) {
+        setFloating(null);
+        return;
+      }
+      const cols = Array.from(thead.rows[0]?.cells ?? []).map((c) => c.getBoundingClientRect().width);
+      const next: FloatingHeader = { top, left: w.left, width: w.width, tableWidth: thead.parentElement?.getBoundingClientRect().width ?? w.width, cols };
+      setFloating((s) => (s && sameHeader(s, next) ? s : next));
+    };
+    const schedule = () => {
+      if (!raf) raf = requestAnimationFrame(measure);
+    };
+    const sync = () => {
+      if (cloneRef.current) cloneRef.current.scrollLeft = wrap.scrollLeft;
+    };
+    scheduleRef.current = schedule;
+    measure();
+    document.addEventListener("scroll", schedule, { passive: true, capture: true });
+    window.addEventListener("resize", schedule);
+    wrap.addEventListener("scroll", sync, { passive: true });
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(schedule) : null;
+    ro?.observe(wrap);
+    if (thead.parentElement) ro?.observe(thead.parentElement);
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+      document.removeEventListener("scroll", schedule, { capture: true });
+      window.removeEventListener("resize", schedule);
+      wrap.removeEventListener("scroll", sync);
+      ro?.disconnect();
+      scheduleRef.current = () => {};
+    };
+  }, [wrapRef, theadRef]);
+  // Column widths follow the cell contents (results streaming in), so re-measure after every render.
+  React.useEffect(() => scheduleRef.current());
+  // Align the clone with the table's horizontal scroll whenever it (re)appears.
+  React.useLayoutEffect(() => {
+    if (floating && cloneRef.current && wrapRef.current) cloneRef.current.scrollLeft = wrapRef.current.scrollLeft;
+  }, [floating, wrapRef]);
+  return { floating, cloneRef };
+}
+
 export function CapMatrix({ session }: { session: CapSession }) {
   const t = useT();
   const fm = useMsg();
@@ -165,6 +245,9 @@ export function CapMatrix({ session }: { session: CapSession }) {
   const tests = testsForSuites(session.config.suites);
   const isMessages = session.kind === "messages";
   const running = session.status === "running" && active?.sessionId === session.id;
+  const wrapRef = React.useRef<HTMLDivElement>(null);
+  const theadRef = React.useRef<HTMLTableSectionElement>(null);
+  const { floating, cloneRef } = useFloatingHeader(wrapRef, theadRef);
 
   const rowsFor = (suite: CapSuiteId) => tests.filter((x) => x.suite === suite).map((x) => x.id);
   const groups: { title: string; ids: string[] }[] = [];
@@ -173,25 +256,27 @@ export function CapMatrix({ session }: { session: CapSession }) {
     for (const [g, ids] of Object.entries(MESSAGE_GROUPS)) groups.push({ title: (t.msgs.groups as Record<string, string>)[g], ids: ids.filter((id) => tests.some((x) => x.id === id)) });
   } else for (const s of suites) groups.push({ title: t.caps.suiteInfo[s].name, ids: rowsFor(s) });
 
+  const headRow = (
+    <tr className="border-b border-border">
+      <th className="sticky left-0 z-10 bg-surface px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-muted">{t.common.test}</th>
+      {session.models.map((snap, i) => (
+        <th key={snap.id} className="min-w-[200px] px-3 py-2 text-left align-bottom">
+          <div className="flex items-center gap-1.5 text-sm font-medium">
+            <SeriesDot index={i} />
+            {snap.label}
+          </div>
+          <div className="text-xs font-normal text-muted">{snap.providerName}</div>
+          {running && capProgress[snap.id] ? <div className="mt-1 text-[11px] font-normal text-accent-ink">{capProgress[snap.id].testId ? `${testInfo(t, capProgress[snap.id].testId!).name}…` : ""} {capProgress[snap.id].done}/{capProgress[snap.id].total}</div> : null}
+        </th>
+      ))}
+    </tr>
+  );
+
   return (
     <>
-      <div className="overflow-x-auto">
+      <div ref={wrapRef} className="overflow-x-auto">
         <table className="w-full min-w-[640px] border-collapse">
-          <thead>
-            <tr className="border-b border-border">
-              <th className="sticky left-0 z-10 bg-surface px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-muted">{t.common.test}</th>
-              {session.models.map((snap, i) => (
-                <th key={snap.id} className="min-w-[200px] px-3 py-2 text-left align-bottom">
-                  <div className="flex items-center gap-1.5 text-sm font-medium">
-                    <SeriesDot index={i} />
-                    {snap.label}
-                  </div>
-                  <div className="text-xs font-normal text-muted">{snap.providerName}</div>
-                  {running && capProgress[snap.id] ? <div className="mt-1 text-[11px] font-normal text-accent-ink">{capProgress[snap.id].testId ? `${testInfo(t, capProgress[snap.id].testId!).name}…` : ""} {capProgress[snap.id].done}/{capProgress[snap.id].total}</div> : null}
-                </th>
-              ))}
-            </tr>
-          </thead>
+          <thead ref={theadRef}>{headRow}</thead>
           <tbody>
             {groups.map((g) =>
               g.ids.length ? (
@@ -250,6 +335,21 @@ export function CapMatrix({ session }: { session: CapSession }) {
           </tbody>
         </table>
       </div>
+      {floating
+        ? createPortal(
+            <div ref={cloneRef} aria-hidden className="pointer-events-none z-20 overflow-hidden border-b border-border bg-surface shadow-[0_2px_6px_rgba(0,0,0,0.06)]" style={{ position: "fixed", top: floating.top, left: floating.left, width: floating.width }}>
+              <table className="border-collapse" style={{ width: floating.tableWidth, tableLayout: "fixed" }}>
+                <colgroup>
+                  {floating.cols.map((w, i) => (
+                    <col key={i} style={{ width: w }} />
+                  ))}
+                </colgroup>
+                <thead>{headRow}</thead>
+              </table>
+            </div>,
+            document.body,
+          )
+        : null}
       <CapDetail session={session} modelId={sel?.modelId ?? null} testId={sel?.testId ?? null} onClose={() => setSel(null)} />
     </>
   );

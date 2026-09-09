@@ -29,7 +29,8 @@ function ResultsWorkbench() {
   const clear = useResults((s) => s.clear);
   const [params, setParams] = useSearchParams();
   const [selectedId, setSelectedId] = React.useState<string | null>(params.get("session"));
-  const selected = sessions.find((s) => s.id === selectedId) ?? null;
+  // Newest session (the list is newest-first) unless the URL or a click names another one.
+  const selected = sessions.find((s) => s.id === selectedId) ?? sessions[0] ?? null;
   const select = (id: string | null) => {
     setSelectedId(id);
     setParams(id ? { session: id } : {}, { replace: true });

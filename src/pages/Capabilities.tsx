@@ -10,7 +10,7 @@ export function CapabilitiesPage() {
     <Page>
       <ProbeHeader title={t.caps.title} subtitle={t.caps.subtitle} />
       <ClientOnly>
-        <ProbeWorkbench kind="capability" suites={CAPABILITY_SUITES} defaults={DEFAULT_CAP_CONFIG} startLabel={t.caps.start} storageKey="wlcu:cap-config" />
+        <ProbeWorkbench kind="capability" suites={CAPABILITY_SUITES} defaults={DEFAULT_CAP_CONFIG} startLabel={t.caps.start} storageKey="wlcu:cap-config" selectionKey="wlcu:cap-models" />
       </ClientOnly>
     </Page>
   );
@@ -22,7 +22,7 @@ export function MessagesPage() {
     <Page>
       <ProbeHeader title={t.msgs.title} subtitle={t.msgs.subtitle} intro={t.msgs.intro} />
       <ClientOnly>
-        <ProbeWorkbench kind="messages" suites={MESSAGE_SUITES} defaults={DEFAULT_MESSAGES_CONFIG} startLabel={t.msgs.start} storageKey="wlcu:msgs-config" />
+        <ProbeWorkbench kind="messages" suites={MESSAGE_SUITES} defaults={DEFAULT_MESSAGES_CONFIG} startLabel={t.msgs.start} storageKey="wlcu:msgs-config" selectionKey="wlcu:msgs-models" />
       </ClientOnly>
     </Page>
   );

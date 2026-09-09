@@ -11,13 +11,12 @@ import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Field, Select } from "@/components/ui/Field";
 import { CheckRow } from "@/components/ui/Toggle";
 import { InfoPopover } from "@/components/ui/Overlay";
-import { ModelPicker } from "@/components/performance/ModelPicker";
+import { ModelPicker, useModelSelection } from "@/components/performance/ModelPicker";
 import { CapSessionView, probeCount } from "@/components/capabilities/CapMatrix";
 import { suiteTests } from "@/lib/caps/registry";
 import type { CapConfig, CapSession, CapSuiteId, ProbeKind } from "@/lib/caps/types";
 import { useRun } from "@/lib/store/run";
 import { useResults } from "@/lib/store/results";
-import { useProviders } from "@/lib/store/providers";
 import { useLocale } from "@/i18n/core";
 
 function useProbeConfig(storageKey: string, defaults: CapConfig) {
@@ -62,18 +61,16 @@ export function ProbeHeader({ title, subtitle, intro }: { title: string; subtitl
   );
 }
 
-export function ProbeWorkbench({ kind, suites, defaults, startLabel, storageKey }: { kind: ProbeKind; suites: CapSuiteId[]; defaults: CapConfig; startLabel: string; storageKey: string }) {
+export function ProbeWorkbench({ kind, suites, defaults, startLabel, storageKey, selectionKey }: { kind: ProbeKind; suites: CapSuiteId[]; defaults: CapConfig; startLabel: string; storageKey: string; selectionKey: string }) {
   const t = useT();
   const locale = useLocale();
-  const models = useProviders((s) => s.models);
   const sessions = useResults((s) => s.sessions);
   const active = useRun((s) => s.active);
   const start = useRun((s) => s.startCapabilities);
   const [params, setParams] = useSearchParams();
   const [config, update] = useProbeConfig(storageKey, defaults);
-  const [selected, setSelected] = React.useState<string[]>(() => models.map((m) => m.id).slice(0, 2));
+  const [selected, setSelected] = useModelSelection(selectionKey, 2);
   const [sessionId, setSessionId] = React.useState<string | null>(params.get("session"));
-  React.useEffect(() => setSelected((s) => s.filter((id) => models.some((m) => m.id === id))), [models]);
   const pageLang: "en" | "zh" = locale === "zh" ? "zh" : "en";
   const effectiveLang: "en" | "zh" = config.langAuto === false ? config.lang : pageLang;
 
