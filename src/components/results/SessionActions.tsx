@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Check, ClipboardCopy, Download, FileSpreadsheet, Trash2 } from "lucide-react";
+import { Check, ClipboardCopy, Download, FileSpreadsheet, ImageDown, Trash2 } from "lucide-react";
 import { useT } from "@/i18n";
 import { Button } from "@/components/ui/Button";
 import type { Session } from "@/lib/store/results";
@@ -7,11 +7,13 @@ import { useResults } from "@/lib/store/results";
 import { sessionToCsv, sessionToMarkdown } from "@/lib/results/export";
 import { copyText, downloadText } from "@/lib/utils/download";
 import { Tip } from "@/components/ui/Overlay";
+import { ShareImageDialog } from "@/components/results/ShareImage";
 
 export function SessionActions({ session, onDeleted }: { session: Session; onDeleted?: () => void }) {
   const t = useT();
   const remove = useResults((s) => s.remove);
   const [copied, setCopied] = React.useState(false);
+  const [imageOpen, setImageOpen] = React.useState(false);
   const stamp = new Date(session.createdAt).toISOString().replace(/[:.]/g, "-").slice(0, 19);
   const base = `llmapicheck-${session.kind}-${stamp}`;
   return (
@@ -41,6 +43,11 @@ export function SessionActions({ session, onDeleted }: { session: Session; onDel
           {copied ? <Check className="h-4 w-4" /> : <ClipboardCopy className="h-4 w-4" />} {copied ? t.common.copied : "Markdown"}
         </Button>
       </Tip>
+      <Tip content={t.results.exportImage}>
+        <Button size="sm" variant="ghost" onClick={() => setImageOpen(true)} aria-label={t.results.exportImage}>
+          <ImageDown className="h-4 w-4" /> {t.results.image}
+        </Button>
+      </Tip>
       {session.status !== "running" ? (
         <Tip content={t.results.deleteSession}>
           <Button
@@ -58,6 +65,7 @@ export function SessionActions({ session, onDeleted }: { session: Session; onDel
           </Button>
         </Tip>
       ) : null}
+      <ShareImageDialog session={session} filename={`${base}.png`} open={imageOpen} onOpenChange={setImageOpen} />
     </div>
   );
 }

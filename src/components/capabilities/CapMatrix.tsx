@@ -3,8 +3,8 @@ import { createPortal } from "react-dom";
 import { useMsg, useT, testInfo } from "@/i18n";
 import { useLocale } from "@/i18n/core";
 import type { CapOutcome, CapSession, CapSuiteId } from "@/lib/caps/types";
-import { REASONING_DIALECTS } from "@/lib/caps/reasoning-dialects";
-import { ALL_TESTS, SUITE_ORDER, testsForSuites } from "@/lib/caps/registry";
+import { highlightsFor, matrixGroups, suitesInSession } from "@/lib/caps/present";
+import { testsForSuites } from "@/lib/caps/registry";
 import { useRun } from "@/lib/store/run";
 import { useProviders } from "@/lib/store/providers";
 import { cn } from "@/lib/utils/cn";
@@ -16,14 +16,6 @@ import { Card, CardBody, CardDescription, CardHeader, CardTitle } from "@/compon
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { SessionActions } from "@/components/results/SessionActions";
-
-/** Groups for the message-format suite (display only). */
-const MESSAGE_GROUPS: Record<string, string[]> = {
-  system: ["messages.multi_system_start", "messages.system_mid"],
-  turns: ["messages.consecutive_user", "messages.consecutive_assistant", "messages.assistant_last"],
-  tools: ["messages.tool_call_no_result", "messages.orphan_tool_result"],
-  other: ["messages.content_parts"],
-};
 
 export function CapDetail({ session, modelId, testId, onClose }: { session: CapSession; modelId: string | null; testId: string | null; onClose: () => void }) {
   const t = useT();
@@ -150,12 +142,6 @@ export function CapDetail({ session, modelId, testId, onClose }: { session: CapS
   );
 }
 
-function suitesInSession(session: CapSession): CapSuiteId[] {
-  const present = new Set<CapSuiteId>();
-  for (const s of SUITE_ORDER) if (session.config.suites[s] || s === "connectivity") present.add(s);
-  return SUITE_ORDER.filter((s) => present.has(s));
-}
-
 /** Bottom edge of the (sticky) site header: the line a floating table header must sit under. */
 function stickyTop() {
   const header = document.querySelector("header");
@@ -241,20 +227,12 @@ export function CapMatrix({ session }: { session: CapSession }) {
   const capProgress = useRun((s) => s.capProgress);
   const active = useRun((s) => s.active);
   const [sel, setSel] = React.useState<{ modelId: string; testId: string } | null>(null);
-  const suites = suitesInSession(session);
-  const tests = testsForSuites(session.config.suites);
-  const isMessages = session.kind === "messages";
   const running = session.status === "running" && active?.sessionId === session.id;
   const wrapRef = React.useRef<HTMLDivElement>(null);
   const theadRef = React.useRef<HTMLTableSectionElement>(null);
   const { floating, cloneRef } = useFloatingHeader(wrapRef, theadRef);
 
-  const rowsFor = (suite: CapSuiteId) => tests.filter((x) => x.suite === suite).map((x) => x.id);
-  const groups: { title: string; ids: string[] }[] = [];
-  if (isMessages) {
-    groups.push({ title: t.caps.suiteInfo.connectivity.name, ids: rowsFor("connectivity") });
-    for (const [g, ids] of Object.entries(MESSAGE_GROUPS)) groups.push({ title: (t.msgs.groups as Record<string, string>)[g], ids: ids.filter((id) => tests.some((x) => x.id === id)) });
-  } else for (const s of suites) groups.push({ title: t.caps.suiteInfo[s].name, ids: rowsFor(s) });
+  const groups = matrixGroups(session, t);
 
   const headRow = (
     <tr className="border-b border-border">
@@ -355,42 +333,6 @@ export function CapMatrix({ session }: { session: CapSession }) {
   );
 }
 
-interface Highlight {
-  tone: "good" | "warning" | "critical" | "neutral";
-  text: string;
-  /** Extra values rendered as their own (monospace) badges so long lists wrap instead of overflowing. */
-  items?: string[];
-}
-
-function highlightsFor(session: CapSession, modelId: string, t: ReturnType<typeof useT>): Highlight[] {
-  const o = session.results[modelId]?.outcomes ?? {};
-  const out: Highlight[] = [];
-  const h = t.caps.highlights;
-  const st = (id: string) => o[id]?.status;
-  if (st("reasoning.default") === "pass") out.push({ tone: "neutral", text: h.reasoning_on });
-  else if (st("reasoning.default") === "fail") out.push({ tone: "neutral", text: h.reasoning_off });
-  const tog = o["reasoning.toggle"];
-  if (tog?.suggestions?.length) out.push({ tone: "good", text: h.toggle.replace("{dialect}", "").replace(/[:：]\s*$/, ""), items: tog.suggestions.map((x) => x.label) });
-  const toolModes = [
-    ["tools.auto", "auto"],
-    ["tools.required", "required"],
-    ["tools.named", "named"],
-    ["tools.parallel", "parallel"],
-    ["tools.streaming", "stream"],
-  ].filter(([id]) => st(id) === "pass");
-  if (o["tools.auto"]) out.push(toolModes.length ? { tone: "good", text: h.tools.replace("{modes}", toolModes.map((x) => x[1]).join(", ")) } : { tone: "critical", text: h.toolsNo });
-  const structModes = [
-    ["structured.json_object", "json_object"],
-    ["structured.json_schema", "json_schema"],
-    ["structured.json_schema_strict", "strict"],
-    ["structured.json_schema_nested", "nested"],
-  ].filter(([id]) => st(id) === "pass");
-  if (o["structured.json_object"]) out.push(structModes.length ? { tone: "good", text: h.structured.replace("{modes}", structModes.map((x) => x[1]).join(", ")) } : { tone: "critical", text: h.structuredNo });
-  if (o["vision.base64"]) out.push(st("vision.base64") === "pass" ? { tone: "good", text: h.vision } : { tone: "critical", text: h.visionNo });
-  if (o["cache.auto"]) out.push(st("cache.auto") === "pass" ? { tone: "good", text: h.cache } : { tone: "warning", text: h.cacheNo });
-  return out;
-}
-
 export function CapSessionView({ session, showActions = true }: { session: CapSession; showActions?: boolean }) {
   const t = useT();
   const locale = useLocale();
@@ -470,5 +412,3 @@ export function CapSessionView({ session, showActions = true }: { session: CapSe
 export function probeCount(suites: Record<CapSuiteId, boolean>) {
   return testsForSuites(suites).length;
 }
-void ALL_TESTS;
-void REASONING_DIALECTS;
